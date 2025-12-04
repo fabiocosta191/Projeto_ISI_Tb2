@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SafeHome.API/SafeHome.API.csproj" />
+  <Project Path="SafeHome.Data/SafeHome.Data.csproj" />
+</Solution>

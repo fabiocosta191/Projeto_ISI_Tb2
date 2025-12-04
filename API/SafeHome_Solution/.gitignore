@@ -1,0 +1,19 @@
+## Ignorar pastas de build (são geradas automaticamente)
+[Bb]in/
+[Oo]bj/
+
+## Ignorar ficheiros temporários do Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Ignorar configurações de ambiente local (onde vamos guardar segredos)
+appsettings.Development.json
+appsettings.local.json
+secrets.json
+
+## Ignorar ficheiros do sistema
+.DS_Store
+Thumbs.db
