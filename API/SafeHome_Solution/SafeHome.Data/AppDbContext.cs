@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using SafeHome.Data.Models;
 
 namespace SafeHome.Data
@@ -14,5 +10,10 @@ namespace SafeHome.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Sensor> Sensors { get; set; }
         public DbSet<SensorReading> SensorReadings { get; set; }
+
+        // Novas Tabelas
+        public DbSet<Building> Buildings { get; set; }
+        public DbSet<Incident> Incidents { get; set; }
+        public DbSet<Alert> Alerts { get; set; }
     }
 }

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models; // Necessário para o Swagger
 using System.Text;
+using SoapCore;
+using SafeHome.API.Soap;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +44,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 // --------------------------------------------------
+// --- SERVIÇO SOAP ---
+builder.Services.AddSoapCore();
+builder.Services.AddScoped<IIncidentService, IncidentService>();
+// --------------------
 
 // Ligar à Base de Dados
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -83,6 +89,13 @@ app.UseHttpsRedirection();
 app.UseAuthentication(); // 1º Valida quem é (Crachá)
 app.UseAuthorization();  // 2º Valida o que pode fazer (Acesso)
 
-app.MapControllers();
+// --- ENDPOINT SOAP ---
+app.UseRouting();
+app.UseEndpoints(endpoints =>
+{
+    endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx", new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
+});
+// ---------------------
 
+app.MapControllers();
 app.Run();
