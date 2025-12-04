@@ -2,11 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using SafeHome.Data;
 using SafeHome.Data.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace SafeHome.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController] // Ativa validações automáticas conforme os slides
+    [Authorize] // <--- ISTO BLOQUEIA O ACESSO A QUEM NÃO TIVER TOKEN
     public class SensorsController : ControllerBase
     {
         private readonly AppDbContext _context;
