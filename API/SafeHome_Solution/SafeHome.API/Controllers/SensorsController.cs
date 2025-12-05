@@ -1,99 +1,129 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SafeHome.API.DTOs;
+using SafeHome.API.Services;
 using SafeHome.Data.Models;
-using Microsoft.AspNetCore.Authorization;
 
 namespace SafeHome.API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController] // Ativa validações automáticas conforme os slides
-    [Authorize] // <--- ISTO BLOQUEIA O ACESSO A QUEM NÃO TIVER TOKEN
+    [ApiController]
+    [Authorize]
     public class SensorsController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly ISensorService _sensorService;
 
-        // Injeção de dependência do contexto da BD
-        public SensorsController(AppDbContext context)
+        public SensorsController(ISensorService sensorService)
         {
-            _context = context;
+            _sensorService = sensorService;
         }
 
-        // GET: api/Sensors
+        /// <summary>
+        /// Obtém a lista de todos os sensores.
+        /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Sensor>>> GetSensors()
         {
-            // Retorna a lista de todos os sensores
-            return await _context.Sensors.ToListAsync();
+            return await _sensorService.GetAllSensors();
         }
 
-        // GET: api/Sensors/5
+        /// <summary>
+        /// Obtém um sensor pelo ID.
+        /// </summary>
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(Sensor), 200)]
+        [ProducesResponseType(404)]
         public async Task<ActionResult<Sensor>> GetSensor(int id)
         {
-            var sensor = await _context.Sensors.FindAsync(id);
+            var sensor = await _sensorService.GetSensorById(id);
 
-            if (sensor == null)
-            {
-                return NotFound(); // Retorna 404 se não existir [cite: 2620]
-            }
-
-            return sensor;
-        }
-
-        // POST: api/Sensors
-        [HttpPost]
-        public async Task<ActionResult<Sensor>> PostSensor(Sensor sensor)
-        {
-            _context.Sensors.Add(sensor);
-            await _context.SaveChangesAsync();
-
-            // Retorna 201 Created e o cabeçalho Location
-            return CreatedAtAction("GetSensor", new { id = sensor.Id }, sensor);
-        }
-
-        // PUT: api/Sensors/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutSensor(int id, Sensor sensor)
-        {
-            if (id != sensor.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(sensor).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Sensors.Any(e => e.Id == id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent(); // 204 No Content
-        }
-
-        // DELETE: api/Sensors/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteSensor(int id)
-        {
-            var sensor = await _context.Sensors.FindAsync(id);
             if (sensor == null)
             {
                 return NotFound();
             }
 
-            _context.Sensors.Remove(sensor);
-            await _context.SaveChangesAsync();
+            return sensor;
+        }
+
+        /// <summary>
+        /// Cria um novo sensor.
+        /// </summary>
+        [HttpPost]
+        [ProducesResponseType(typeof(Sensor), 201)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<Sensor>> PostSensor(CreateSensorDto sensorDto)
+        {
+            var sensor = new Sensor
+            {
+                Name = sensorDto.Name,
+                Type = sensorDto.Type,
+                // Se vier null, assume 0 (mas vamos tratar o erro se 0 não existir)
+                BuildingId = sensorDto.BuildingId ?? 0,
+                IsActive = true
+            };
+
+            try
+            {
+                var createdSensor = await _sensorService.CreateSensor(sensor);
+                return CreatedAtAction("GetSensor", new { id = createdSensor.Id }, createdSensor);
+            }
+            catch (Exception ex)
+            {
+                // Verifica se o erro foi causado por violação de Chave Estrangeira (FK)
+                // Isto acontece se tentares inserir um BuildingId que não existe na tabela Buildings
+                if (ex.InnerException != null && ex.InnerException.Message.Contains("FOREIGN KEY"))
+                {
+                    return BadRequest($"Erro: O Edifício com ID {sensor.BuildingId} não existe. Cria o edifício primeiro.");
+                }
+
+                // Se for outro erro qualquer, lança-o para ser tratado pelo servidor
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Atualiza um sensor existente.
+        /// </summary>
+        [HttpPut("{id}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(400)]
+        public async Task<IActionResult> PutSensor(int id, UpdateSensorDto sensorDto)
+        {
+            // Mapear DTO -> Entidade
+            var sensor = new Sensor
+            {
+                Id = id,
+                Name = sensorDto.Name,
+                Type = sensorDto.Type,
+                IsActive = sensorDto.IsActive,
+                // CORREÇÃO AQUI: Se for null, assume 0
+                BuildingId = sensorDto.BuildingId ?? 0
+            };
+
+            var result = await _sensorService.UpdateSensor(id, sensor);
+
+            if (!result)
+            {
+                return BadRequest("Erro ao atualizar: ID não encontrado ou inválido.");
+            }
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Remove um sensor.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> DeleteSensor(int id)
+        {
+            var result = await _sensorService.DeleteSensor(id);
+
+            if (!result)
+            {
+                return NotFound();
+            }
 
             return NoContent();
         }

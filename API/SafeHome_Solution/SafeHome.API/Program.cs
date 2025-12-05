@@ -44,6 +44,9 @@ builder.Services.AddSwaggerGen(c =>
             new List<string>()
         }
     });
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
 });
 
 // --- Base de Dados ---
@@ -77,6 +80,8 @@ builder.Services.AddScoped<IIncidentService, IncidentService>();
 // --- Serviços Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
 
+// --- SERVIÇO REST (Camada de Lógica) ---
+builder.Services.AddScoped<ISensorService, SensorService>();
 
 // ==========================================
 // 2. CONSTRUÇÃO DA APP

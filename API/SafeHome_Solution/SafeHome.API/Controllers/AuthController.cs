@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SafeHome.API.DTOs;
 using SafeHome.Data;
@@ -6,7 +7,6 @@ using SafeHome.Data.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
 
 namespace SafeHome.API.Controllers
 {
@@ -27,17 +27,18 @@ namespace SafeHome.API.Controllers
         [HttpPost("Register")]
         public async Task<ActionResult<User>> Register(LoginDto request)
         {
-            // Verifica se o user já existe
             if (await _context.Users.AnyAsync(u => u.Username == request.Username))
             {
                 return BadRequest("User already exists.");
             }
 
-            // Cria o utilizador (NOTA: Em produção, usa-se BCrypt para a password!)
+            // SEGURANÇA: Criar Hash da password antes de guardar
+            string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
             var user = new User
             {
                 Username = request.Username,
-                PasswordHash = request.Password, // Simplificado para aula
+                PasswordHash = passwordHash, // Guarda o hash, nunca a password real!
                 Role = "Admin"
             };
 
@@ -51,16 +52,17 @@ namespace SafeHome.API.Controllers
         [HttpPost("Login")]
         public async Task<ActionResult<string>> Login(LoginDto request)
         {
-            // 1. Verificar na Base de Dados
+            // 1. Buscar user APENAS pelo username
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == request.Username && u.PasswordHash == request.Password);
+                .FirstOrDefaultAsync(u => u.Username == request.Username);
 
-            if (user == null)
+            // 2. Verificar se existe e se a password bate certo com o Hash
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 return BadRequest("User not found or wrong password.");
             }
 
-            // 2. Criar o Token (O "Crachá")
+            // 3. Criar o Token
             string token = CreateToken(user);
 
             return Ok(token);
