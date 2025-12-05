@@ -12,13 +12,13 @@ namespace SafeHome.API.DTOs
         /// </summary>
         [Required(ErrorMessage = "O nome é obrigatório")]
         [StringLength(100, ErrorMessage = "O nome não pode exceder 100 caracteres")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         /// <summary>
         /// O tipo de sensor (ex: Smoke, Temperature, Flood).
         /// </summary>
         [Required(ErrorMessage = "O tipo é obrigatório")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         /// <summary>
         /// O ID do edifício onde o sensor será instalado. (Opcional)
@@ -35,13 +35,13 @@ namespace SafeHome.API.DTOs
         /// O novo nome do sensor.
         /// </summary>
         [Required(ErrorMessage = "O nome é obrigatório")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         /// <summary>
         /// O novo tipo do sensor.
         /// </summary>
         [Required(ErrorMessage = "O tipo é obrigatório")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         /// <summary>
         /// Indica se o sensor está ativo ou inativo.

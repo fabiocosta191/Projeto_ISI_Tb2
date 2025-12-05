@@ -85,6 +85,7 @@ builder.Services.AddScoped<ISensorService, SensorService>();
 
 // ADICIONA ESTE:
 builder.Services.AddScoped<IBuildingService, BuildingService>();
+builder.Services.AddScoped<IBuildingService, BuildingService>();
 
 // ==========================================
 // 2. CONSTRUÇÃO DA APP
