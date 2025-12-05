@@ -1,29 +1,31 @@
-using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; // Necessário para o Swagger
-using System.Text;
-using SoapCore;
+using Microsoft.OpenApi.Models;
+using SafeHome.API.Services;
 using SafeHome.API.Soap;
+using SafeHome.Data;
+using SoapCore;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Adicionar serviços ao contentor
+// ==========================================
+// 1. REGISTO DE SERVIÇOS (DI Container)
+// ==========================================
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- CONFIGURAÇÃO DO SWAGGER COM SUPORTE A JWT ---
-// (Tem de ser ANTES do app.Build)
-// Configuração do Swagger para não precisares de escrever "Bearer"
+// --- Swagger (Com suporte a JWT Bearer) ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http, // MUDANÇA AQUI: Usar Http em vez de ApiKey
-        Scheme = "bearer", // O Swagger vai adicionar "Bearer " automaticamente
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
         BearerFormat = "JWT",
         Description = "Insira apenas o token JWT (sem escrever Bearer)"
     });
@@ -43,17 +45,12 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
-// --------------------------------------------------
-// --- SERVIÇO SOAP ---
-builder.Services.AddSoapCore();
-builder.Services.AddScoped<IIncidentService, IncidentService>();
-// --------------------
 
-// Ligar à Base de Dados
+// --- Base de Dados ---
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- CONFIGURAÇÃO JWT ---
+// --- Autenticação JWT ---
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -72,30 +69,50 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
-// ------------------------
 
-// 2. CONSTRUIR A APLICAÇÃO (A Fronteira!)
+// --- Serviço SOAP (SoapCore) ---
+builder.Services.AddSoapCore();
+builder.Services.AddScoped<IIncidentService, IncidentService>();
+
+// --- Serviços Externos (HttpClient) ---
+builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
+
+
+// ==========================================
+// 2. CONSTRUÇÃO DA APP
+// ==========================================
 var app = builder.Build();
 
-// 3. Configurar o Pipeline (Comportamento)
+
+// ==========================================
+// 3. PIPELINE DE PEDIDOS (Middleware)
+// A ORDEM AQUI É CRÍTICA! NÃO MUDAR!
+// ==========================================
+
+// A. Ambiente de Desenvolvimento
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); // Isto mostra a página azul!
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 
-app.UseAuthentication(); // 1º Valida quem é (Crachá)
-app.UseAuthorization();  // 2º Valida o que pode fazer (Acesso)
-
-// --- ENDPOINT SOAP ---
+// B. Routing (Descobrir qual o endpoint)
 app.UseRouting();
+
+// C. Segurança (Quem és? Podes entrar?)
+app.UseAuthentication();
+app.UseAuthorization();
+
+// D. Endpoints Finais (Executar a lógica)
 app.UseEndpoints(endpoints =>
 {
+    // 1. Endpoint SOAP
     endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx", new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
-});
-// ---------------------
 
-app.MapControllers();
+    // 2. Endpoints REST (Controllers)
+    endpoints.MapControllers();
+});
+
 app.Run();
