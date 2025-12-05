@@ -12,6 +12,7 @@
 	<ItemGroup>
 	  <Compile Remove="Controllers\Class.cs" />
 	  <Compile Remove="Services\Interface.cs" />
+	  <Compile Remove="Services\Interface1.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

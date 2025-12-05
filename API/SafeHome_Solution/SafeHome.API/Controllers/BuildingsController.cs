@@ -1,53 +1,96 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.Services;
-using SafeHome.Data;
 using SafeHome.Data.Models;
 
 namespace SafeHome.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Protegido!
+    [Authorize]
     public class BuildingsController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IBuildingService _buildingService;
         private readonly IWeatherService _weatherService;
 
-        // Injetamos a BD e o Serviço de Meteorologia
-        public BuildingsController(AppDbContext context, IWeatherService weatherService)
+        public BuildingsController(IBuildingService buildingService, IWeatherService weatherService)
         {
-            _context = context;
+            _buildingService = buildingService;
             _weatherService = weatherService;
         }
 
-        // POST: api/Buildings
-        [HttpPost]
-        public async Task<ActionResult<Building>> PostBuilding(Building building)
+        /// <summary>
+        /// Lista todos os edifícios registados.
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Building>>> GetBuildings()
         {
-            _context.Buildings.Add(building);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetBuilding), new { id = building.Id }, building);
+            return await _buildingService.GetAllBuildings();
         }
 
-        // GET: api/Buildings/5
+        /// <summary>
+        /// Obtém detalhes de um edifício e a meteorologia atual do local.
+        /// </summary>
+        /// <param name="id">ID do edifício</param>
         [HttpGet("{id}")]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(404)]
         public async Task<ActionResult<object>> GetBuilding(int id)
         {
-            var building = await _context.Buildings.FindAsync(id);
+            var building = await _buildingService.GetBuildingById(id);
 
             if (building == null) return NotFound();
 
-            // Vamos buscar a meteorologia para este local
+            // Integração Externa: Buscar Meteorologia
             var weather = await _weatherService.GetCurrentWeather(building.Latitude, building.Longitude);
 
-            // Devolvemos o Edifício + O tempo atual
             return new
             {
                 DadosEdificio = building,
                 MeteorologiaAtual = weather
             };
+        }
+
+        /// <summary>
+        /// Regista um novo edifício.
+        /// </summary>
+        [HttpPost]
+        [ProducesResponseType(201)]
+        public async Task<ActionResult<Building>> PostBuilding(Building building)
+        {
+            var created = await _buildingService.CreateBuilding(building);
+            return CreatedAtAction(nameof(GetBuilding), new { id = created.Id }, created);
+        }
+
+        /// <summary>
+        /// Atualiza os dados de um edifício.
+        /// </summary>
+        [HttpPut("{id}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(400)]
+        public async Task<IActionResult> PutBuilding(int id, Building building)
+        {
+            if (id != building.Id) return BadRequest("ID do URL não corresponde ao ID do corpo.");
+
+            var updated = await _buildingService.UpdateBuilding(id, building);
+
+            if (!updated) return NotFound();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Remove um edifício.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> DeleteBuilding(int id)
+        {
+            var deleted = await _buildingService.DeleteBuilding(id);
+            if (!deleted) return NotFound();
+
+            return NoContent();
         }
     }
 }
