@@ -97,7 +97,7 @@ var app = builder.Build();
 
 // ==========================================
 // 3. PIPELINE DE PEDIDOS (Middleware)
-// A ORDEM AQUI  CRTICA! NO MUDAR!
+// A ORDEM AQUI É CRÍTICA! NÃO MUDAR!
 // ==========================================
 
 // A. Ambiente de Desenvolvimento
