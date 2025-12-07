@@ -11,7 +11,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================================
-// 1. REGISTO DE SERVIÇOS (DI Container)
+// 1. REGISTO DE SERVIOS (DI Container)
 // ==========================================
 
 builder.Services.AddControllers();
@@ -53,7 +53,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// --- Autenticação JWT ---
+// --- Autenticao JWT ---
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -73,28 +73,31 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- Serviço SOAP (SoapCore) ---
+// --- Servio SOAP (SoapCore) ---
 builder.Services.AddSoapCore();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<ISensorReadingService, SensorReadingService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
-// --- Serviços Externos (HttpClient) ---
+// --- Servios Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
 
-// --- SERVIÇO REST (Camada de Lógica) ---
+// --- SERVIO REST (Camada de Lgica) ---
 builder.Services.AddScoped<ISensorService, SensorService>();
 
 // ADICIONA ESTE:
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 
 // ==========================================
-// 2. CONSTRUÇÃO DA APP
+// 2. CONSTRUO DA APP
 // ==========================================
 var app = builder.Build();
 
 
 // ==========================================
 // 3. PIPELINE DE PEDIDOS (Middleware)
-// A ORDEM AQUI É CRÍTICA! NÃO MUDAR!
+// A ORDEM AQUI  CRTICA! NO MUDAR!
 // ==========================================
 
 // A. Ambiente de Desenvolvimento
@@ -109,11 +112,11 @@ app.UseHttpsRedirection();
 // B. Routing (Descobrir qual o endpoint)
 app.UseRouting();
 
-// C. Segurança (Quem és? Podes entrar?)
+// C. Segurana (Quem s? Podes entrar?)
 app.UseAuthentication();
 app.UseAuthorization();
 
-// D. Endpoints Finais (Executar a lógica)
+// D. Endpoints Finais (Executar a lgica)
 app.UseEndpoints(endpoints =>
 {
     // 1. Endpoint SOAP
