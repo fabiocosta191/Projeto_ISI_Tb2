@@ -11,5 +11,21 @@ namespace SafeHome.API.Soap
 
         [OperationContract]
         Task<List<Incident>> GetUnresolvedIncidents();
+
+        // REST + SOAP full CRUD coverage
+        [OperationContract]
+        Task<List<Incident>> GetAllIncidents();
+
+        [OperationContract]
+        Task<Incident?> GetIncidentById(int id);
+
+        [OperationContract]
+        Task<Incident> CreateIncident(Incident incident);
+
+        [OperationContract]
+        Task<bool> UpdateIncident(int id, Incident incident);
+
+        [OperationContract]
+        Task<bool> DeleteIncident(int id);
     }
 }
