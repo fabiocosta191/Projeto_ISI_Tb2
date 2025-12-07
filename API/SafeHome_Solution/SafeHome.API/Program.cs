@@ -11,7 +11,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================================
-// 1. REGISTO DE SERVIOS (DI Container)
+// 1. REGISTO DE SERVIÇOS (DI Container)
 // ==========================================
 
 builder.Services.AddControllers();
