@@ -116,7 +116,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// D. Endpoints Finais (Executar a lgica)
+// D. Endpoints Finais (Executar a lógica)
 app.UseEndpoints(endpoints =>
 {
     // 1. Endpoint SOAP
