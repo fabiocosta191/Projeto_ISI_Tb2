@@ -80,7 +80,7 @@ builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<ISensorReadingService, SensorReadingService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
-// --- Servios Externos (HttpClient) ---
+// --- Serviços Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
 
 // --- SERVIO REST (Camada de Lgica) ---
