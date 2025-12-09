@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SafeHome – Dashboard</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body class="bg">
   <div class="layout">
     <!-- Sidebar -->
@@ -132,6 +134,36 @@
           </table>
         </div>
       </section>
+
+      <!-- Alertas -->
+      <section class="card panel">
+        <div class="panel-header">
+          <h3>Alertas recentes</h3>
+          <button id="reload-alerts" class="btn-secondary">
+            Recarregar
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data / Hora</th>
+                <th>Tipo</th>
+                <th>Severidade</th>
+                <th>Estado</th>
+                <th>Origem</th>
+              </tr>
+            </thead>
+            <tbody id="alerts-table-body">
+              <tr>
+                <td colspan="5">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
 
       <!-- Incidentes -->
       <section class="card panel">
@@ -331,8 +363,8 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="4">Erro ao carregar edifícios: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
         document.getElementById("stat-buildings").textContent = "–";
@@ -448,12 +480,94 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="3">Erro ao carregar leituras: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
       }
     }
+
+    // ----------------------------
+    // Alertas (tabela)
+    // GET /api/Alerts
+    // ----------------------------
+    async function loadAlertsTable(limit = 10) {
+      const tbody = document.getElementById("alerts-table-body");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5">A carregar...</td>
+        </tr>
+      `;
+
+      try {
+        const alerts = await apiFetch("/api/Alerts");
+        const list = Array.isArray(alerts) ? alerts : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5">Nenhum alerta encontrado.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const sorted = list
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt || b.timestamp || b.raisedAt || 0) -
+              new Date(a.createdAt || a.timestamp || a.raisedAt || 0)
+          )
+          .slice(0, limit);
+
+        const rowsHtml = sorted
+          .map((a) => {
+            const ts = a.createdAt || a.timestamp || a.raisedAt;
+            const tsText = ts ? new Date(ts).toLocaleString("pt-PT") : "-";
+
+            const type = a.type || a.category || "-";
+            const severity = a.severity || a.level || "-";
+
+            let statusText = "-";
+            if (typeof a.isResolved === "boolean") {
+              statusText = a.isResolved ? "Resolvido" : "Ativo";
+            } else if (a.status) {
+              statusText = a.status;
+            }
+
+            const origin =
+              (a.sensor && a.sensor.name) ||
+              (a.building && a.building.name) ||
+              (a.sensorId != null && `Sensor #${a.sensorId}`) ||
+              (a.buildingId != null && `Edifício #${a.buildingId}`) ||
+              "-";
+
+            return `
+              <tr>
+                <td>${escapeHtml(tsText)}</td>
+                <td>${escapeHtml(type)}</td>
+                <td>${escapeHtml(severity)}</td>
+                <td>${escapeHtml(statusText)}</td>
+                <td>${escapeHtml(origin)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5">Erro ao carregar alertas: ${escapeHtml(
+          err.message
+        )}</td>
+          </tr>
+        `;
+      }
+    }
+
 
     // ----------------------------
     // Incidentes
@@ -524,8 +638,8 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="5">Erro ao carregar incidentes: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
       }
@@ -535,10 +649,11 @@
     // Carregar tudo
     // ----------------------------
     async function loadStats() {
-      await loadBuildings();        // precisa disto para o cache de edifícios
+      await loadBuildings();
       await loadSensorsStats();
       await loadAlertsStats();
       await loadIncidentsStats();
+      await loadAlertsTable();
       await loadLatestReadings();
       await loadLatestIncidents();
     }
@@ -546,11 +661,10 @@
     // ----------------------------
     // Inicialização
     // ----------------------------
-    document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", () => {
       if (!ensureAuthenticated()) return;
 
       setWelcomeMessage();
-      setRoleBadge();
       loadStats();
 
       document
@@ -565,15 +679,21 @@
         .getElementById("reload-incidents")
         .addEventListener("click", () => loadLatestIncidents());
 
+      // 👉 NOVO: recarregar alertas
+      document
+        .getElementById("reload-alerts")
+        .addEventListener("click", () => loadAlertsTable());
+
       document
         .getElementById("btn-logout")
         .addEventListener("click", () => {
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USERNAME_KEY);
-          localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
     });
+
   </script>
 </body>
+
 </html>
