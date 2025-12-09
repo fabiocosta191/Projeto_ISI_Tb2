@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using SafeHome.API.Options;
 using SafeHome.API.Services;
 using SafeHome.API.Soap;
 using SafeHome.Data;
@@ -82,6 +83,10 @@ builder.Services.AddScoped<IUserService, UserService>();
 
 // --- Serviços Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
+builder.Services.AddHttpClient("social-sharing");
+
+// --- Configuração / Options ---
+builder.Services.Configure<List<SocialNetworkOption>>(builder.Configuration.GetSection("SocialNetworks"));
 
 // --- Serviços REST (Camada de Lógica) ---
 builder.Services.AddScoped<ISensorService, SensorService>();

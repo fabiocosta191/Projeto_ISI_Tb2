@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SafeHome.API.DTOs;
@@ -14,6 +14,8 @@ namespace SafeHome.API.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private static readonly HashSet<string> AllowedRoles = ["Admin", "User"];
+
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
 
@@ -25,44 +27,45 @@ namespace SafeHome.API.Controllers
 
         // POST: api/Auth/Register
         [HttpPost("Register")]
-        public async Task<ActionResult<User>> Register(LoginDto request)
+        public async Task<ActionResult<object>> Register(RegisterDto request)
         {
+            if (!AllowedRoles.Contains(request.Role))
+            {
+                return BadRequest("Invalid role. Allowed roles: Admin, User.");
+            }
+
             if (await _context.Users.AnyAsync(u => u.Username == request.Username))
             {
                 return BadRequest("User already exists.");
             }
 
-            // SEGURANÇA: Criar Hash da password antes de guardar
             string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
             var user = new User
             {
-                Username = request.Username,
-                PasswordHash = passwordHash, // Guarda o hash, nunca a password real!
-                Role = "Admin"
+                Username = request.Username.Trim(),
+                PasswordHash = passwordHash,
+                Role = request.Role
             };
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok(user);
+            return CreatedAtAction(nameof(Register), new { user.Id }, new { user.Id, user.Username, user.Role });
         }
 
         // POST: api/Auth/Login
         [HttpPost("Login")]
         public async Task<ActionResult<string>> Login(LoginDto request)
         {
-            // 1. Buscar user APENAS pelo username
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Username == request.Username);
 
-            // 2. Verificar se existe e se a password bate certo com o Hash
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 return BadRequest("User not found or wrong password.");
             }
 
-            // 3. Criar o Token
             string token = CreateToken(user);
 
             return Ok(token);

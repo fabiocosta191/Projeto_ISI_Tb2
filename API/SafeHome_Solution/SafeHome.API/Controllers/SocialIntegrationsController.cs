@@ -20,8 +20,15 @@ namespace SafeHome.API.Controllers
         [HttpPost("incidents/{id}/share")]
         public async Task<ActionResult<SocialShareResultDto>> ShareIncident(int id, [FromBody] SocialShareRequestDto request)
         {
-            var result = await _socialIntegrationService.ShareIncidentAsync(id, request);
-            return Ok(result);
+            try
+            {
+                var result = await _socialIntegrationService.ShareIncidentAsync(id, request);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
     }
 }

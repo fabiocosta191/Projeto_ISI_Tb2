@@ -59,5 +59,7 @@ namespace SafeHome.API.DTOs
         public string PayloadPreview { get; set; } = string.Empty;
         public string ShareUrl { get; set; } = string.Empty;
         public DateTime SentAtUtc { get; set; }
+        public int ExternalStatusCode { get; set; }
+        public string ExternalResponsePreview { get; set; } = string.Empty;
     }
 }
