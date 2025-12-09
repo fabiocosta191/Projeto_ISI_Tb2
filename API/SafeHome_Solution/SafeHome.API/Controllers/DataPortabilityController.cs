@@ -28,6 +28,10 @@ namespace SafeHome.API.Controllers
         [HttpPost("sensor-readings/import")]
         public async Task<ActionResult<ImportSummaryDto>> ImportSensorReadings([FromBody] IEnumerable<SensorReadingImportDto> readings)
         {
+            if (readings == null)
+            {
+                return BadRequest("Readings list cannot be null.");
+            }
             var result = await _dataPortabilityService.ImportSensorReadingsAsync(readings);
             return Ok(result);
         }
