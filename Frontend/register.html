@@ -91,6 +91,11 @@
         statusEl.classList.add("error");
         return;
       }
+      if (username.length < 3) {
+        statusEl.textContent = "O username deve ter pelo menos 3 caracteres.";
+        statusEl.classList.add("error");
+        return;
+      }
 
       if (password.length < 4) {
         statusEl.textContent = "A password deve ter pelo menos 4 caracteres.";
