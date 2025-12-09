@@ -79,7 +79,7 @@ namespace SafeHome.API.Services
                     Timestamp = readingDto.Timestamp ?? DateTime.UtcNow
                 };
 
-                await _dbContext.SensorReadings.AddAsync(entity);
+                _dbContext.SensorReadings.Add(entity);
                 summary.Imported++;
             }
 
