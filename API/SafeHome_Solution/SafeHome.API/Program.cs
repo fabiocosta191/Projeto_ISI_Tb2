@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -6,7 +7,6 @@ using SafeHome.API.Services;
 using SafeHome.API.Soap;
 using SafeHome.Data;
 using SoapCore;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,7 +38,7 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Id = "Bearer",
                 }
             },
             new List<string>()
@@ -73,7 +73,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- Servio SOAP (SoapCore) ---
+// --- Serviço SOAP (SoapCore) ---
 builder.Services.AddSoapCore();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
@@ -83,17 +83,17 @@ builder.Services.AddScoped<IUserService, UserService>();
 // --- Serviços Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
 
-// --- SERVIO REST (Camada de Lgica) ---
+// --- Serviços REST (Camada de Lógica) ---
 builder.Services.AddScoped<ISensorService, SensorService>();
-
-// ADICIONA ESTE:
 builder.Services.AddScoped<IBuildingService, BuildingService>();
+builder.Services.AddScoped<IReportingService, ReportingService>();
+builder.Services.AddScoped<IDataPortabilityService, DataPortabilityService>();
+builder.Services.AddScoped<ISocialIntegrationService, SocialIntegrationService>();
 
 // ==========================================
 // 2. CONSTRUÇÃO DA APP
 // ==========================================
 var app = builder.Build();
-
 
 // ==========================================
 // 3. PIPELINE DE PEDIDOS (Middleware)
@@ -112,7 +112,7 @@ app.UseHttpsRedirection();
 // B. Routing (Descobrir qual o endpoint)
 app.UseRouting();
 
-// C. Segurana (Quem s? Podes entrar?)
+// C. Segurança (Quem és? Podes entrar?)
 app.UseAuthentication();
 app.UseAuthorization();
 
