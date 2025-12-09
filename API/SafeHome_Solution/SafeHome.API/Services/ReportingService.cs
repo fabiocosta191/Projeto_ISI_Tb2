@@ -81,7 +81,7 @@ namespace SafeHome.API.Services
             foreach (var incident in incidents)
             {
                 csv.AppendLine(
-                    $"{incident.Id},{incident.Type},{incident.Severity},{incident.Status},\"{incident.Building?.Name}\",{incident.StartedAt:O},{incident.EndedAt:O},\"{incident.Description.Replace("\"", "''")}\"");
+                    $"{incident.Id},{incident.Type},{incident.Severity},{incident.Status},\"{incident.Building?.Name}\",{incident.StartedAt:O},{incident.EndedAt:O},\"{incident.Description?.Replace("\"", "''") ?? ""}\"");
             }
 
             return csv.ToString();
