@@ -64,7 +64,7 @@ namespace SafeHome.API.Services
             });
 
             var httpClient = _httpClientFactory.CreateClient("social-sharing");
-            var httpRequest = new HttpRequestMessage(HttpMethod.Post, selectedNetwork.ApiUrl)
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, selectedNetwork.ApiUrl)
             {
                 Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
             };
