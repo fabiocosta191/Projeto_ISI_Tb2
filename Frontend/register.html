@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeHome – Registar</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg">
+  <main class="login-wrapper">
+    <section class="login-card">
+      <header class="login-header">
+        <div class="logo-circle">SH</div>
+        <div>
+          <h1>SafeHome</h1>
+          <p>Criar nova conta</p>
+        </div>
+      </header>
+
+      <form id="register-form" class="login-form" autocomplete="off">
+        <div class="field">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="ex: admin"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            minlength="4"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="confirm-password">Confirmar Password</label>
+          <input
+            type="password"
+            id="confirm-password"
+            name="confirm-password"
+            placeholder="••••••••"
+            minlength="4"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn-primary">Registar</button>
+
+        <p id="register-status" class="status-message" aria-live="polite"></p>
+      </form>
+
+      <footer class="login-footer">
+        <small>Já tens conta?
+          <a href="login.html" style="color: var(--accent); text-decoration: none;">
+            Inicia sessão
+          </a>
+        </small>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    // MESMO URL da API que usas no login/dashboard
+    const API_BASE_URL = "https://localhost:7152"; // em Azure vais trocar para o URL da API online
+    const REGISTER_ENDPOINT = "/api/Auth/Register";
+
+    const form = document.getElementById("register-form");
+    const statusEl = document.getElementById("register-status");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      statusEl.textContent = "A criar conta...";
+      statusEl.classList.remove("error", "success");
+
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+
+      // validações simples no front
+      if (!username) {
+        statusEl.textContent = "O username é obrigatório.";
+        statusEl.classList.add("error");
+        return;
+      }
+
+      if (password.length < 4) {
+        statusEl.textContent = "A password deve ter pelo menos 4 caracteres.";
+        statusEl.classList.add("error");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        statusEl.textContent = "As passwords não coincidem.";
+        statusEl.classList.add("error");
+        return;
+      }
+
+      try {
+        const response = await fetch(API_BASE_URL + REGISTER_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }), // LoginDto
+        });
+
+        const text = await response.text(); // a API devolve o User em JSON, mas não precisamos dele aqui
+
+        if (!response.ok) {
+          // pode vir "User already exists." do servidor
+          throw new Error(text || "Erro ao registar utilizador.");
+        }
+
+        statusEl.textContent = "Conta criada com sucesso! A redirecionar...";
+        statusEl.classList.add("success");
+
+        // Opcional: vai para o login após 1.2s
+        setTimeout(() => {
+          window.location.href = "login.html";
+        }, 1200);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || "Erro ao registar. Tenta novamente.";
+        statusEl.classList.add("error");
+      }
+    });
+  </script>
+</body>
+</html>
