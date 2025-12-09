@@ -56,6 +56,27 @@
 
         const form = document.getElementById("login-form");
         const statusEl = document.getElementById("login-status");
+        const ROLE_KEY = "safehome_role";
+
+        function parseJwt(token) {
+            try {
+                const payloadBase64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+                const decoded = atob(payloadBase64);
+                return JSON.parse(decoded);
+            } catch (err) {
+                console.warn("Não foi possível ler o token:", err);
+                return null;
+            }
+        }
+
+        function extractRole(payload) {
+            if (!payload) return null;
+            return (
+                payload.role ||
+                payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+                null
+            );
+        }
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -88,6 +109,14 @@
                 // Guarda o JWT para usar nas próximas chamadas
                 localStorage.setItem("safehome_token", token);
                 localStorage.setItem("safehome_username", username);
+
+                const payload = parseJwt(token);
+                const role = extractRole(payload);
+                if (role) {
+                    localStorage.setItem(ROLE_KEY, role);
+                } else {
+                    localStorage.removeItem(ROLE_KEY);
+                }
 
 
                 statusEl.textContent = "Login efetuado com sucesso!";

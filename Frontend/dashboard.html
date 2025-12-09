@@ -47,7 +47,7 @@
           <p id="welcome-text">Bem-vindo(a)</p>
         </div>
         <div class="topbar-right">
-          <span class="badge">Admin</span>
+          <span id="role-badge" class="badge">Perfil</span>
         </div>
       </header>
 
@@ -171,11 +171,32 @@
     const API_BASE_URL = "https://localhost:7152"; // quando subires a API muda aqui
     const TOKEN_KEY = "safehome_token";
     const USERNAME_KEY = "safehome_username";
+    const ROLE_KEY = "safehome_role";
 
     let buildingsCache = [];
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function parseJwt(token) {
+      try {
+        const payloadBase64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const decoded = atob(payloadBase64);
+        return JSON.parse(decoded);
+      } catch (err) {
+        console.warn("Não foi possível interpretar o token:", err);
+        return null;
+      }
+    }
+
+    function extractRole(payload) {
+      if (!payload) return null;
+      return (
+        payload.role ||
+        payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+        null
+      );
     }
 
     function ensureAuthenticated() {
@@ -235,6 +256,26 @@
       const username = localStorage.getItem(USERNAME_KEY) || "Utilizador";
       const welcome = document.getElementById("welcome-text");
       welcome.textContent = `Bem-vindo(a), ${username}`;
+    }
+
+    function setRoleBadge() {
+      const badge = document.getElementById("role-badge");
+      if (!badge) return;
+
+      const storedRole = localStorage.getItem(ROLE_KEY);
+      if (storedRole) {
+        badge.textContent = storedRole;
+        return;
+      }
+
+      const token = getToken();
+      const roleFromToken = token ? extractRole(parseJwt(token)) : null;
+      if (roleFromToken) {
+        localStorage.setItem(ROLE_KEY, roleFromToken);
+        badge.textContent = roleFromToken;
+      } else {
+        badge.textContent = "Perfil";
+      }
     }
 
     // ----------------------------
@@ -509,6 +550,7 @@
       if (!ensureAuthenticated()) return;
 
       setWelcomeMessage();
+      setRoleBadge();
       loadStats();
 
       document
@@ -528,6 +570,7 @@
         .addEventListener("click", () => {
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USERNAME_KEY);
+          localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
     });
