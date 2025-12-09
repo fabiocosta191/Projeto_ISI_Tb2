@@ -18,6 +18,21 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// --- CORS (para permitir front-end externo) ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        // Para desenvolvimento: permitir tudo (inclui file://, localhost, etc.)
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        // Em produção, podes trocar para:
+        // .WithOrigins("https://o-teu-front-end.com")
+    });
+});
+
 // --- Swagger (Com suporte a JWT Bearer) ---
 builder.Services.AddSwaggerGen(c =>
 {
@@ -117,6 +132,9 @@ app.UseHttpsRedirection();
 // B. Routing (Descobrir qual o endpoint)
 app.UseRouting();
 
+// CORS - permitir pedidos do front-end externo
+app.UseCors("AllowFrontend");
+
 // C. Segurança (Quem és? Podes entrar?)
 app.UseAuthentication();
 app.UseAuthorization();
@@ -125,7 +143,8 @@ app.UseAuthorization();
 app.UseEndpoints(endpoints =>
 {
     // 1. Endpoint SOAP
-    endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx", new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
+    endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx",
+        new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
 
     // 2. Endpoints REST (Controllers)
     endpoints.MapControllers();
