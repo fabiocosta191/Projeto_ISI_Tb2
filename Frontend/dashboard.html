@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeHome – Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg">
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-circle small">SH</div>
+        <div>
+          <h1>SafeHome</h1>
+          <p>Smart dashboard</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-link active">
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span>Edifícios</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span>Sensores</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span>Alertas / Incidentes</span>
+        </a>
+      </nav>
+
+      <button id="btn-logout" class="btn-ghost">
+        Terminar sessão
+      </button>
+    </aside>
+
+    <!-- Conteúdo principal -->
+    <main class="main">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div>
+          <h2>Dashboard</h2>
+          <p id="welcome-text">Bem-vindo(a)</p>
+        </div>
+        <div class="topbar-right">
+          <span class="badge">Admin</span>
+        </div>
+      </header>
+
+      <!-- Cards de resumo -->
+      <section class="cards-grid">
+        <article class="card stat-card">
+          <h3>Edifícios</h3>
+          <p id="stat-buildings" class="stat-number">–</p>
+          <p class="stat-label">Total registado</p>
+        </article>
+
+        <article class="card stat-card">
+          <h3>Sensores</h3>
+          <p id="stat-sensors" class="stat-number">–</p>
+          <p class="stat-label">Total registado</p>
+        </article>
+
+        <article class="card stat-card">
+          <h3>Alertas</h3>
+          <p id="stat-alerts" class="stat-number">–</p>
+          <p class="stat-label">Ativos</p>
+        </article>
+
+        <article class="card stat-card">
+          <h3>Incidentes</h3>
+          <p id="stat-incidents" class="stat-number">–</p>
+          <p class="stat-label">Ativos / Reportados</p>
+        </article>
+      </section>
+
+      <!-- Tabela de edifícios -->
+      <section class="card panel">
+        <div class="panel-header">
+          <h3>Lista de edifícios</h3>
+          <button id="reload-buildings" class="btn-secondary">
+            Recarregar
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Morada</th>
+                <th>Risco</th>
+              </tr>
+            </thead>
+            <tbody id="buildings-table-body">
+              <tr>
+                <td colspan="4">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Leituras de sensores -->
+      <section class="card panel">
+        <div class="panel-header">
+          <h3>Últimas leituras de sensores</h3>
+          <button id="reload-readings" class="btn-secondary">
+            Recarregar
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data / Hora</th>
+                <th>Sensor</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody id="readings-table-body">
+              <tr>
+                <td colspan="3">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Incidentes -->
+      <section class="card panel">
+        <div class="panel-header">
+          <h3>Incidentes recentes</h3>
+          <button id="reload-incidents" class="btn-secondary">
+            Recarregar
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Início</th>
+                <th>Tipo</th>
+                <th>Severidade</th>
+                <th>Estado</th>
+                <th>Edifício</th>
+              </tr>
+            </thead>
+            <tbody id="incidents-table-body">
+              <tr>
+                <td colspan="5">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // =====================================
+    // CONFIG – AJUSTA PARA AZURE DEPOIS
+    // =====================================
+    const API_BASE_URL = "https://localhost:7152"; // quando subires a API muda aqui
+    const TOKEN_KEY = "safehome_token";
+    const USERNAME_KEY = "safehome_username";
+
+    let buildingsCache = [];
+
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function ensureAuthenticated() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = "login.html";
+        return false;
+      }
+      return true;
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function apiFetch(path, options = {}) {
+      const token = getToken();
+      if (!token) {
+        throw new Error("Sem token. Inicia sessão novamente.");
+      }
+
+      const headers = {
+        Authorization: "Bearer " + token,
+        ...(options.headers || {}),
+      };
+
+      if (options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+
+      const response = await fetch(API_BASE_URL + path, {
+        ...options,
+        headers,
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          `Erro ${response.status}` + (text ? `: ${text}` : "")
+        );
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        return response.json();
+      }
+      return response.text();
+    }
+
+    function setWelcomeMessage() {
+      const username = localStorage.getItem(USERNAME_KEY) || "Utilizador";
+      const welcome = document.getElementById("welcome-text");
+      welcome.textContent = `Bem-vindo(a), ${username}`;
+    }
+
+    // ----------------------------
+    // Edifícios
+    // GET /api/Buildings
+    // ----------------------------
+    async function loadBuildings() {
+      const tbody = document.getElementById("buildings-table-body");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4">A carregar...</td>
+        </tr>
+      `;
+
+      try {
+        const buildings = await apiFetch("/api/Buildings");
+        buildingsCache = Array.isArray(buildings) ? buildings : [];
+
+        if (!buildingsCache.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="4">Nenhum edifício encontrado.</td>
+            </tr>
+          `;
+          document.getElementById("stat-buildings").textContent = "0";
+          return;
+        }
+
+        document.getElementById("stat-buildings").textContent =
+          buildingsCache.length;
+
+        const rowsHtml = buildingsCache
+          .map((b) => {
+            const id = b.id;
+            const name = b.name || `Edifício #${id}`;
+            const address = b.address || "-";
+            const risk = b.riskType || "-";
+
+            return `
+              <tr>
+                <td>${escapeHtml(id)}</td>
+                <td>${escapeHtml(name)}</td>
+                <td>${escapeHtml(address)}</td>
+                <td>${escapeHtml(risk)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4">Erro ao carregar edifícios: ${escapeHtml(
+              err.message
+            )}</td>
+          </tr>
+        `;
+        document.getElementById("stat-buildings").textContent = "–";
+      }
+    }
+
+    // ----------------------------
+    // Stats: sensores / alertas / incidentes
+    // ----------------------------
+    async function loadSensorsStats() {
+      try {
+        const sensors = await apiFetch("/api/Sensors");
+        const count = Array.isArray(sensors) ? sensors.length : "–";
+        document.getElementById("stat-sensors").textContent = count;
+      } catch (err) {
+        console.warn("Erro ao carregar sensores:", err);
+        document.getElementById("stat-sensors").textContent = "–";
+      }
+    }
+
+    async function loadAlertsStats() {
+      try {
+        const alerts = await apiFetch("/api/Alerts");
+        const items = Array.isArray(alerts) ? alerts : [];
+        const active = items.filter((a) => a.isResolved === false).length;
+        document.getElementById("stat-alerts").textContent =
+          active || items.length || "0";
+      } catch (err) {
+        console.warn("Erro ao carregar alertas:", err);
+        document.getElementById("stat-alerts").textContent = "–";
+      }
+    }
+
+    async function loadIncidentsStats() {
+      try {
+        const incidents = await apiFetch("/api/Incidents");
+        const items = Array.isArray(incidents) ? incidents : [];
+        const active = items.filter(
+          (i) =>
+            (i.status || "").toString().toLowerCase() !== "resolved" ||
+            i.endedAt == null
+        ).length;
+        document.getElementById("stat-incidents").textContent =
+          active || items.length || "0";
+      } catch (err) {
+        console.warn("Erro ao carregar incidentes:", err);
+        document.getElementById("stat-incidents").textContent = "–";
+      }
+    }
+
+    // ----------------------------
+    // Leituras de sensores
+    // GET /api/SensorReadings
+    // ----------------------------
+    async function loadLatestReadings(limit = 10) {
+      const tbody = document.getElementById("readings-table-body");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="3">A carregar...</td>
+        </tr>
+      `;
+
+      try {
+        const readings = await apiFetch("/api/SensorReadings");
+        const list = Array.isArray(readings) ? readings : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="3">Nenhuma leitura encontrada.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const sorted = list
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
+          )
+          .slice(0, limit);
+
+        const rowsHtml = sorted
+          .map((r) => {
+            const ts = r.timestamp
+              ? new Date(r.timestamp).toLocaleString("pt-PT")
+              : "-";
+
+            const sensorLabel =
+              (r.sensor &&
+                (r.sensor.name || `Sensor #${r.sensor.id}`)) ||
+              (r.sensorId != null
+                ? `Sensor #${r.sensorId}`
+                : "Sensor");
+
+            const value =
+              r.value != null ? r.value.toString() : "-";
+
+            return `
+              <tr>
+                <td>${escapeHtml(ts)}</td>
+                <td>${escapeHtml(sensorLabel)}</td>
+                <td>${escapeHtml(value)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="3">Erro ao carregar leituras: ${escapeHtml(
+              err.message
+            )}</td>
+          </tr>
+        `;
+      }
+    }
+
+    // ----------------------------
+    // Incidentes
+    // GET /api/Incidents
+    // ----------------------------
+    async function loadLatestIncidents(limit = 10) {
+      const tbody = document.getElementById("incidents-table-body");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5">A carregar...</td>
+        </tr>
+      `;
+
+      try {
+        const incidents = await apiFetch("/api/Incidents");
+        const list = Array.isArray(incidents) ? incidents : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5">Nenhum incidente encontrado.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const sorted = list
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.startedAt || 0) - new Date(a.startedAt || 0)
+          )
+          .reverse()
+          .slice(0, limit);
+
+        const rowsHtml = sorted
+          .map((i) => {
+            const start = i.startedAt
+              ? new Date(i.startedAt).toLocaleString("pt-PT")
+              : "-";
+            const type = i.type || "-";
+            const severity = i.severity || "-";
+            const status = i.status || "-";
+
+            const buildingName =
+              (i.building && i.building.name) ||
+              (buildingsCache.find((b) => b.id === i.buildingId) || {})
+                .name ||
+              (i.buildingId != null
+                ? `Edifício #${i.buildingId}`
+                : "-");
+
+            return `
+              <tr>
+                <td>${escapeHtml(start)}</td>
+                <td>${escapeHtml(type)}</td>
+                <td>${escapeHtml(severity)}</td>
+                <td>${escapeHtml(status)}</td>
+                <td>${escapeHtml(buildingName)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5">Erro ao carregar incidentes: ${escapeHtml(
+              err.message
+            )}</td>
+          </tr>
+        `;
+      }
+    }
+
+    // ----------------------------
+    // Carregar tudo
+    // ----------------------------
+    async function loadStats() {
+      await loadBuildings();        // precisa disto para o cache de edifícios
+      await loadSensorsStats();
+      await loadAlertsStats();
+      await loadIncidentsStats();
+      await loadLatestReadings();
+      await loadLatestIncidents();
+    }
+
+    // ----------------------------
+    // Inicialização
+    // ----------------------------
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!ensureAuthenticated()) return;
+
+      setWelcomeMessage();
+      loadStats();
+
+      document
+        .getElementById("reload-buildings")
+        .addEventListener("click", () => loadBuildings());
+
+      document
+        .getElementById("reload-readings")
+        .addEventListener("click", () => loadLatestReadings());
+
+      document
+        .getElementById("reload-incidents")
+        .addEventListener("click", () => loadLatestIncidents());
+
+      document
+        .getElementById("btn-logout")
+        .addEventListener("click", () => {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USERNAME_KEY);
+          window.location.href = "login.html";
+        });
+    });
+  </script>
+</body>
+</html>

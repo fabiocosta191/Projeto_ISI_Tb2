@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SafeHome – Login</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body class="bg">
+    <main class="login-wrapper">
+        <section class="login-card">
+            <header class="login-header">
+                <div class="logo-circle">SH</div>
+                <div>
+                    <h1>SafeHome</h1>
+                    <p>Portal de gestão de edifícios</p>
+                </div>
+            </header>
+
+            <form id="login-form" class="login-form" autocomplete="on">
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="ex: admin" required />
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••" minlength="4"
+                        required />
+                </div>
+
+                <button type="submit" class="btn-primary">Entrar</button>
+
+                <p id="login-status" class="status-message" aria-live="polite"></p>
+            </form>
+
+            <footer class="login-footer">
+                <small>
+                    © SafeHome – Projeto ISI<br />
+                    Não tens conta?
+                    <a href="register.html" style="color: var(--accent); text-decoration: none;">
+                        Regista-te aqui
+                    </a>
+                </small>
+            </footer>
+
+        </section>
+    </main>
+
+    <script>
+        // Ajusta para a porta correta da tua API (vê no launchSettings.json ou no Swagger)
+        const API_BASE_URL = "https://localhost:7152";
+        const LOGIN_ENDPOINT = "/api/Auth/Login"; // Respeita maiúsculas/minúsculas
+
+        const form = document.getElementById("login-form");
+        const statusEl = document.getElementById("login-status");
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            statusEl.textContent = "A autenticar...";
+            statusEl.classList.remove("error", "success");
+
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value;
+
+            try {
+                const response = await fetch(API_BASE_URL + LOGIN_ENDPOINT, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                if (!response.ok) {
+                    throw new Error("User não encontrado ou password errada.");
+                }
+
+                // A API devolve uma string simples com o token
+                const token = await response.text();
+
+                if (!token) {
+                    throw new Error("Login efetuado, mas não foi recebido nenhum token.");
+                }
+
+                // Guarda o JWT para usar nas próximas chamadas
+                localStorage.setItem("safehome_token", token);
+                localStorage.setItem("safehome_username", username);
+
+
+                statusEl.textContent = "Login efetuado com sucesso!";
+                statusEl.classList.add("success");
+
+                // Redirecionar para o dashboard (a criar depois)
+                setTimeout(() => {
+                    window.location.href = "dashboard.html";
+                }, 800);
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent =
+                    err.message || "Erro ao iniciar sessão. Tenta novamente.";
+                statusEl.classList.add("error");
+            }
+        });
+    </script>
+
+</body>
+
+</html>

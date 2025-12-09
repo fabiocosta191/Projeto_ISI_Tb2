@@ -1,12 +1,13 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using SafeHome.API.Options;
 using SafeHome.API.Services;
 using SafeHome.API.Soap;
 using SafeHome.Data;
 using SoapCore;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// --- CORS (para permitir front-end externo) ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        // Para desenvolvimento: permitir tudo (inclui file://, localhost, etc.)
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        // Em produção, podes trocar para:
+        // .WithOrigins("https://o-teu-front-end.com")
+    });
+});
 
 // --- Swagger (Com suporte a JWT Bearer) ---
 builder.Services.AddSwaggerGen(c =>
@@ -38,7 +54,7 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Id = "Bearer",
                 }
             },
             new List<string>()
@@ -73,7 +89,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- Servio SOAP (SoapCore) ---
+// --- Serviço SOAP (SoapCore) ---
 builder.Services.AddSoapCore();
 builder.Services.AddScoped<IIncidentService, IncidentService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
@@ -82,18 +98,22 @@ builder.Services.AddScoped<IUserService, UserService>();
 
 // --- Serviços Externos (HttpClient) ---
 builder.Services.AddHttpClient<IWeatherService, OpenWeatherService>();
+builder.Services.AddHttpClient("social-sharing");
 
-// --- SERVIO REST (Camada de Lgica) ---
+// --- Configuração / Options ---
+builder.Services.Configure<List<SocialNetworkOption>>(builder.Configuration.GetSection("SocialNetworks"));
+
+// --- Serviços REST (Camada de Lógica) ---
 builder.Services.AddScoped<ISensorService, SensorService>();
-
-// ADICIONA ESTE:
 builder.Services.AddScoped<IBuildingService, BuildingService>();
+builder.Services.AddScoped<IReportingService, ReportingService>();
+builder.Services.AddScoped<IDataPortabilityService, DataPortabilityService>();
+builder.Services.AddScoped<ISocialIntegrationService, SocialIntegrationService>();
 
 // ==========================================
 // 2. CONSTRUÇÃO DA APP
 // ==========================================
 var app = builder.Build();
-
 
 // ==========================================
 // 3. PIPELINE DE PEDIDOS (Middleware)
@@ -112,7 +132,10 @@ app.UseHttpsRedirection();
 // B. Routing (Descobrir qual o endpoint)
 app.UseRouting();
 
-// C. Segurana (Quem s? Podes entrar?)
+// CORS - permitir pedidos do front-end externo
+app.UseCors("AllowFrontend");
+
+// C. Segurança (Quem és? Podes entrar?)
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -120,7 +143,8 @@ app.UseAuthorization();
 app.UseEndpoints(endpoints =>
 {
     // 1. Endpoint SOAP
-    endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx", new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
+    endpoints.UseSoapEndpoint<IIncidentService>("/Service.asmx",
+        new SoapEncoderOptions(), SoapSerializer.XmlSerializer);
 
     // 2. Endpoints REST (Controllers)
     endpoints.MapControllers();
