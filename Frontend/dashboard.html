@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SafeHome – Dashboard</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body class="bg">
   <div class="layout">
     <!-- Sidebar -->
@@ -47,7 +49,7 @@
           <p id="welcome-text">Bem-vindo(a)</p>
         </div>
         <div class="topbar-right">
-          <span class="badge">Admin</span>
+          <span id="role-badge" class="badge">Perfil</span>
         </div>
       </header>
 
@@ -133,6 +135,36 @@
         </div>
       </section>
 
+      <!-- Alertas -->
+      <section class="card panel">
+        <div class="panel-header">
+          <h3>Alertas recentes</h3>
+          <button id="reload-alerts" class="btn-secondary">
+            Recarregar
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data / Hora</th>
+                <th>Tipo</th>
+                <th>Severidade</th>
+                <th>Estado</th>
+                <th>Origem</th>
+              </tr>
+            </thead>
+            <tbody id="alerts-table-body">
+              <tr>
+                <td colspan="5">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+
       <!-- Incidentes -->
       <section class="card panel">
         <div class="panel-header">
@@ -168,14 +200,35 @@
     // =====================================
     // CONFIG – AJUSTA PARA AZURE DEPOIS
     // =====================================
-    const API_BASE_URL = "https://localhost:7152"; // quando subires a API muda aqui
+    const API_BASE_URL = "https://safehomeapi-22997-23015-h8dufye2amezh5f4.spaincentral-01.azurewebsites.net"; // quando subires a API muda aqui
     const TOKEN_KEY = "safehome_token";
     const USERNAME_KEY = "safehome_username";
+    const ROLE_KEY = "safehome_role";
 
     let buildingsCache = [];
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function parseJwt(token) {
+      try {
+        const payloadBase64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const decoded = atob(payloadBase64);
+        return JSON.parse(decoded);
+      } catch (err) {
+        console.warn("Não foi possível interpretar o token:", err);
+        return null;
+      }
+    }
+
+    function extractRole(payload) {
+      if (!payload) return null;
+      return (
+        payload.role ||
+        payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+        null
+      );
     }
 
     function ensureAuthenticated() {
@@ -237,6 +290,26 @@
       welcome.textContent = `Bem-vindo(a), ${username}`;
     }
 
+    function setRoleBadge() {
+      const badge = document.getElementById("role-badge");
+      if (!badge) return;
+
+      const storedRole = localStorage.getItem(ROLE_KEY);
+      if (storedRole) {
+        badge.textContent = storedRole;
+        return;
+      }
+
+      const token = getToken();
+      const roleFromToken = token ? extractRole(parseJwt(token)) : null;
+      if (roleFromToken) {
+        localStorage.setItem(ROLE_KEY, roleFromToken);
+        badge.textContent = roleFromToken;
+      } else {
+        badge.textContent = "Perfil";
+      }
+    }
+
     // ----------------------------
     // Edifícios
     // GET /api/Buildings
@@ -290,8 +363,8 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="4">Erro ao carregar edifícios: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
         document.getElementById("stat-buildings").textContent = "–";
@@ -407,12 +480,94 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="3">Erro ao carregar leituras: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
       }
     }
+
+    // ----------------------------
+    // Alertas (tabela)
+    // GET /api/Alerts
+    // ----------------------------
+    async function loadAlertsTable(limit = 10) {
+      const tbody = document.getElementById("alerts-table-body");
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5">A carregar...</td>
+        </tr>
+      `;
+
+      try {
+        const alerts = await apiFetch("/api/Alerts");
+        const list = Array.isArray(alerts) ? alerts : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="5">Nenhum alerta encontrado.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const sorted = list
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt || b.timestamp || b.raisedAt || 0) -
+              new Date(a.createdAt || a.timestamp || a.raisedAt || 0)
+          )
+          .slice(0, limit);
+
+        const rowsHtml = sorted
+          .map((a) => {
+            const ts = a.createdAt || a.timestamp || a.raisedAt;
+            const tsText = ts ? new Date(ts).toLocaleString("pt-PT") : "-";
+
+            const type = a.type || a.category || "-";
+            const severity = a.severity || a.level || "-";
+
+            let statusText = "-";
+            if (typeof a.isResolved === "boolean") {
+              statusText = a.isResolved ? "Resolvido" : "Ativo";
+            } else if (a.status) {
+              statusText = a.status;
+            }
+
+            const origin =
+              (a.sensor && a.sensor.name) ||
+              (a.building && a.building.name) ||
+              (a.sensorId != null && `Sensor #${a.sensorId}`) ||
+              (a.buildingId != null && `Edifício #${a.buildingId}`) ||
+              "-";
+
+            return `
+              <tr>
+                <td>${escapeHtml(tsText)}</td>
+                <td>${escapeHtml(type)}</td>
+                <td>${escapeHtml(severity)}</td>
+                <td>${escapeHtml(statusText)}</td>
+                <td>${escapeHtml(origin)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        tbody.innerHTML = rowsHtml;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5">Erro ao carregar alertas: ${escapeHtml(
+          err.message
+        )}</td>
+          </tr>
+        `;
+      }
+    }
+
 
     // ----------------------------
     // Incidentes
@@ -483,8 +638,8 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="5">Erro ao carregar incidentes: ${escapeHtml(
-              err.message
-            )}</td>
+          err.message
+        )}</td>
           </tr>
         `;
       }
@@ -494,10 +649,11 @@
     // Carregar tudo
     // ----------------------------
     async function loadStats() {
-      await loadBuildings();        // precisa disto para o cache de edifícios
+      await loadBuildings();
       await loadSensorsStats();
       await loadAlertsStats();
       await loadIncidentsStats();
+      await loadAlertsTable();
       await loadLatestReadings();
       await loadLatestIncidents();
     }
@@ -505,7 +661,7 @@
     // ----------------------------
     // Inicialização
     // ----------------------------
-    document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", () => {
       if (!ensureAuthenticated()) return;
 
       setWelcomeMessage();
@@ -523,6 +679,11 @@
         .getElementById("reload-incidents")
         .addEventListener("click", () => loadLatestIncidents());
 
+      // 👉 NOVO: recarregar alertas
+      document
+        .getElementById("reload-alerts")
+        .addEventListener("click", () => loadAlertsTable());
+
       document
         .getElementById("btn-logout")
         .addEventListener("click", () => {
@@ -531,6 +692,8 @@
           window.location.href = "login.html";
         });
     });
+
   </script>
 </body>
+
 </html>

@@ -42,6 +42,16 @@
         </div>
 
         <div class="field">
+          <label for="role">Perfil</label>
+          <select id="role" name="role" required>
+            <option value="">Seleciona um perfil</option>
+            <option value="User">Utilizador</option>
+            <option value="Admin">Administrador</option>
+          </select>
+          <small class="text-muted">A API aceita apenas "Admin" ou "User".</small>
+        </div>
+
+        <div class="field">
           <label for="confirm-password">Confirmar Password</label>
           <input
             type="password"
@@ -70,7 +80,7 @@
 
   <script>
     // MESMO URL da API que usas no login/dashboard
-    const API_BASE_URL = "https://localhost:7152"; // em Azure vais trocar para o URL da API online
+    const API_BASE_URL = "https://safehomeapi-22997-23015-h8dufye2amezh5f4.spaincentral-01.azurewebsites.net"; // em Azure vais trocar para o URL da API online
     const REGISTER_ENDPOINT = "/api/Auth/Register";
 
     const form = document.getElementById("register-form");
@@ -84,6 +94,7 @@
       const username = document.getElementById("username").value.trim();
       const password = document.getElementById("password").value;
       const confirmPassword = document.getElementById("confirm-password").value;
+      const role = document.getElementById("role").value;
 
       // validações simples no front
       if (!username) {
@@ -109,13 +120,19 @@
         return;
       }
 
+      if (!role) {
+        statusEl.textContent = "Seleciona o perfil de utilizador.";
+        statusEl.classList.add("error");
+        return;
+      }
+
       try {
         const response = await fetch(API_BASE_URL + REGISTER_ENDPOINT, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ username, password }), // RegisterDto
+          body: JSON.stringify({ username, password, role }), // RegisterDto
         });
 
         const text = await response.text(); // a API devolve o User em JSON, mas não precisamos dele aqui
