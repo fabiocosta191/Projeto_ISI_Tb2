@@ -30,6 +30,9 @@
         <a href="#sensors" class="nav-link">
           <span>Sensores</span>
         </a>
+        <a href="#users" class="nav-link admin-only">
+          <span>Utilizadores</span>
+        </a>
         <a href="#alerts" class="nav-link">
           <span>Alertas / Incidentes</span>
         </a>
@@ -195,6 +198,31 @@
         </div>
       </section>
 
+      <!-- Utilizadores (apenas administradores) -->
+      <section id="users" class="card panel admin-only">
+        <div class="panel-header">
+          <h3>Utilizadores registados</h3>
+          <button id="reload-users" class="btn-secondary">Recarregar</button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome de utilizador</th>
+                <th>Perfil</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <tr>
+                <td colspan="3">Visível apenas para administradores.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Alertas -->
       <section id="alerts" class="card panel">
         <div class="panel-header">
@@ -256,6 +284,22 @@
     </main>
   </div>
 
+  <div id="building-modal" class="modal hidden">
+    <div class="modal-content" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted">Edifício</p>
+          <h3 id="building-modal-title">Detalhes</h3>
+        </div>
+        <button id="close-building-modal" class="btn-ghost">Fechar</button>
+      </div>
+
+      <div id="building-modal-body" class="modal-body">
+        <p>A carregar detalhes...</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     // =====================================
     // CONFIG – AJUSTA PARA AZURE DEPOIS
@@ -266,6 +310,8 @@
     const ROLE_KEY = "safehome_role";
 
     let buildingsCache = [];
+    let sensorsCache = [];
+    let sensorsCacheLoaded = false;
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
@@ -417,6 +463,15 @@
       return role && role.toString().toLowerCase() === "admin";
     }
 
+    async function ensureSensorsCache(force = false) {
+      if (!sensorsCacheLoaded || force) {
+        const sensors = await apiFetch("/api/Sensors");
+        sensorsCache = Array.isArray(sensors) ? sensors : [];
+        sensorsCacheLoaded = true;
+      }
+      return sensorsCache;
+    }
+
     // ----------------------------
     // Edifícios
     // GET /api/Buildings
@@ -454,7 +509,7 @@
             const risk = b.riskType || "-";
 
             return `
-              <tr>
+              <tr class="clickable-row" data-building-id="${escapeHtml(id)}">
                 <td>${escapeHtml(id)}</td>
                 <td>${escapeHtml(name)}</td>
                 <td>${escapeHtml(address)}</td>
@@ -465,6 +520,7 @@
           .join("");
 
         tbody.innerHTML = rowsHtml;
+        attachBuildingRowHandlers();
       } catch (err) {
         console.error(err);
         tbody.innerHTML = `
@@ -478,12 +534,131 @@
       }
     }
 
+    function attachBuildingRowHandlers() {
+      document
+        .querySelectorAll("#buildings-table-body .clickable-row")
+        .forEach((row) => {
+          row.addEventListener("click", () => {
+            const id = Number(row.getAttribute("data-building-id"));
+            if (!Number.isNaN(id)) {
+              showBuildingDetails(id);
+            }
+          });
+        });
+    }
+
+    function setModalVisibility(visible) {
+      const modal = document.getElementById("building-modal");
+      if (!modal) return;
+
+      if (visible) {
+        modal.classList.remove("hidden");
+      } else {
+        modal.classList.add("hidden");
+      }
+    }
+
+    function renderWeather(weather) {
+      if (!weather) {
+        return "<p class=\"muted-box\">Meteorologia indisponível.</p>";
+      }
+
+      const temperature =
+        weather.temperature != null
+          ? `${weather.temperature.toFixed(1)}ºC`
+          : "–";
+      const humidity =
+        weather.humidity != null ? `${weather.humidity}%` : "–";
+      const description = weather.description || "Sem descrição";
+
+      return `
+        <div class="modal-section">
+          <h4>Meteorologia atual</h4>
+          <p>${escapeHtml(description)}</p>
+          <p class="muted-box">Temperatura: ${escapeHtml(
+            temperature
+          )} · Humidade: ${escapeHtml(humidity)}</p>
+        </div>
+      `;
+    }
+
+    function renderSensorsForBuilding(list) {
+      if (!list.length) {
+        return "<p class=\"muted-box\">Sem sensores associados.</p>";
+      }
+
+      const pills = list
+        .map(
+          (s) => `
+          <span class="pill">#${escapeHtml(s.id)} · ${escapeHtml(
+            s.name || "Sensor"
+          )} (${escapeHtml(s.type || "-")})</span>
+        `
+        )
+        .join("");
+
+      return `<div class="pill-list">${pills}</div>`;
+    }
+
+    async function showBuildingDetails(buildingId) {
+      const modalBody = document.getElementById("building-modal-body");
+      const modalTitle = document.getElementById("building-modal-title");
+
+      if (!modalBody || !modalTitle) return;
+
+      setModalVisibility(true);
+      modalBody.innerHTML = "<p>A carregar detalhes...</p>";
+      modalTitle.textContent = `Edifício #${buildingId}`;
+
+      try {
+        const detail = await apiFetch(`/api/Buildings/${buildingId}`);
+        const building = detail.DadosEdificio || detail.dadosEdificio || detail;
+        const weather = detail.MeteorologiaAtual || detail.meteorologiaAtual;
+
+        const sensors = await ensureSensorsCache();
+        const buildingSensors = sensors.filter(
+          (s) => Number(s.buildingId) === Number(buildingId)
+        );
+
+        const name = building.name || `Edifício #${buildingId}`;
+        const address = building.address || "Sem morada";
+        const risk = building.riskType || "-";
+        const coords =
+          building.latitude != null && building.longitude != null
+            ? `${building.latitude}, ${building.longitude}`
+            : "Coord. indisponíveis";
+
+        modalTitle.textContent = name;
+        modalBody.innerHTML = `
+          <div class="modal-body">
+            <div class="modal-section">
+              <h4>Identificação</h4>
+              <p>${escapeHtml(address)}</p>
+              <p class="muted-box">Risco: ${escapeHtml(risk)} · Coordenadas: ${escapeHtml(
+          coords
+        )}</p>
+            </div>
+            ${renderWeather(weather)}
+            <div class="modal-section">
+              <h4>Sensores associados</h4>
+              ${renderSensorsForBuilding(buildingSensors)}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        modalBody.innerHTML = `<p class="status-message error">${escapeHtml(
+          err.message || "Não foi possível carregar o edifício"
+        )}</p>`;
+      }
+    }
+
     // ----------------------------
     // Stats: sensores / alertas / incidentes
     // ----------------------------
     async function loadSensorsStats() {
       try {
-        const sensors = await apiFetch("/api/Sensors");
+        const sensors = await ensureSensorsCache(true);
         const count = Array.isArray(sensors) ? sensors.length : "–";
         document.getElementById("stat-sensors").textContent = count;
       } catch (err) {
@@ -519,6 +694,52 @@
       } catch (err) {
         console.warn("Erro ao carregar incidentes:", err);
         document.getElementById("stat-incidents").textContent = "–";
+      }
+    }
+
+    // ----------------------------
+    // Utilizadores (apenas admin)
+    // GET /api/Users
+    // ----------------------------
+    async function loadUsers() {
+      const tbody = document.getElementById("users-table-body");
+      if (!tbody || !isAdmin()) return;
+
+      tbody.innerHTML = `
+        <tr><td colspan="3">A carregar...</td></tr>
+      `;
+
+      try {
+        const users = await apiFetch("/api/Users");
+        const list = Array.isArray(users) ? users : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr><td colspan="3">Nenhum utilizador encontrado.</td></tr>
+          `;
+          return;
+        }
+
+        const rows = list
+          .map(
+            (u) => `
+              <tr>
+                <td>${escapeHtml(u.id)}</td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.role || "-")}</td>
+              </tr>
+            `
+          )
+          .join("");
+
+        tbody.innerHTML = rows;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr><td colspan="3">Erro ao carregar utilizadores: ${escapeHtml(
+            err.message
+          )}</td></tr>
+        `;
       }
     }
 
@@ -777,6 +998,9 @@
       await loadAlertsTable();
       await loadLatestReadings();
       await loadLatestIncidents();
+      if (isAdmin()) {
+        await loadUsers();
+      }
     }
 
     // ----------------------------
@@ -791,6 +1015,9 @@
       const adminPanels = document.querySelectorAll(".admin-panel");
       if (isAdmin()) {
         adminPanels.forEach((panel) => panel.classList.remove("hidden"));
+        document
+          .querySelectorAll(".admin-only")
+          .forEach((el) => el.classList.remove("admin-only"));
       }
 
       // Navegação rápida entre secções
@@ -828,6 +1055,11 @@
         .getElementById("reload-alerts")
         .addEventListener("click", () => loadAlertsTable());
 
+      const reloadUsersBtn = document.getElementById("reload-users");
+      if (reloadUsersBtn) {
+        reloadUsersBtn.addEventListener("click", () => loadUsers());
+      }
+
       document
         .getElementById("btn-logout")
         .addEventListener("click", () => {
@@ -836,6 +1068,17 @@
           localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
+
+      const modal = document.getElementById("building-modal");
+      const closeModal = document.getElementById("close-building-modal");
+      if (modal && closeModal) {
+        closeModal.addEventListener("click", () => setModalVisibility(false));
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) {
+            setModalVisibility(false);
+          }
+        });
+      }
 
       const createBuildingForm = document.getElementById("create-building-form");
       if (createBuildingForm) {

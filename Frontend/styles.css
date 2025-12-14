@@ -425,6 +425,18 @@ body.bg {
   font-size: 1rem;
 }
 
+.admin-only {
+  display: none;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background-color: rgba(34, 197, 94, 0.08);
+}
+
 .admin-panel {
   margin-bottom: 1rem;
   padding: 0.85rem 1rem;
@@ -512,6 +524,70 @@ body.bg {
 
 .data-table tbody tr:hover {
   background-color: rgba(15, 23, 42, 0.85);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  transition: opacity var(--transition-fast);
+}
+
+.modal.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-content {
+  width: min(720px, 92vw);
+  background: var(--card-bg);
+  border-radius: 1rem;
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+  padding: 1.25rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.modal-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.modal-section {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--text-main);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  font-size: 0.85rem;
+}
+
+.muted-box {
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 /* Responsivo */
