@@ -21,16 +21,19 @@
       </div>
 
       <nav class="sidebar-nav">
-        <a href="#" class="nav-link active">
+        <a href="#top" class="nav-link active">
           <span>Dashboard</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#buildings" class="nav-link">
           <span>Edifícios</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#sensors" class="nav-link">
           <span>Sensores</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#users" class="nav-link admin-only">
+          <span>Utilizadores</span>
+        </a>
+        <a href="#alerts" class="nav-link">
           <span>Alertas / Incidentes</span>
         </a>
       </nav>
@@ -41,7 +44,7 @@
     </aside>
 
     <!-- Conteúdo principal -->
-    <main class="main">
+    <main id="top" class="main">
       <!-- Topbar -->
       <header class="topbar">
         <div>
@@ -53,8 +56,10 @@
         </div>
       </header>
 
+      <div id="global-status" class="banner hidden" role="status" aria-live="polite"></div>
+
       <!-- Cards de resumo -->
-      <section class="cards-grid">
+      <section id="summary" class="cards-grid">
         <article class="card stat-card">
           <h3>Edifícios</h3>
           <p id="stat-buildings" class="stat-number">–</p>
@@ -81,12 +86,44 @@
       </section>
 
       <!-- Tabela de edifícios -->
-      <section class="card panel">
+      <section id="buildings" class="card panel">
         <div class="panel-header">
           <h3>Lista de edifícios</h3>
           <button id="reload-buildings" class="btn-secondary">
             Recarregar
           </button>
+        </div>
+
+        <div id="building-admin-panel" class="admin-panel hidden">
+          <h4>Adicionar novo edifício</h4>
+          <form id="create-building-form" class="compact-form">
+            <div class="form-grid">
+              <label class="field">
+                <span>Nome</span>
+                <input type="text" id="building-name" name="name" required />
+              </label>
+              <label class="field">
+                <span>Morada</span>
+                <input type="text" id="building-address" name="address" required />
+              </label>
+              <label class="field">
+                <span>Latitude</span>
+                <input type="number" step="0.000001" id="building-latitude" name="latitude" required />
+              </label>
+              <label class="field">
+                <span>Longitude</span>
+                <input type="number" step="0.000001" id="building-longitude" name="longitude" required />
+              </label>
+              <label class="field">
+                <span>Tipo de risco</span>
+                <input type="text" id="building-risk" name="riskType" placeholder="Ex.: Incêndio" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Guardar edifício</button>
+              <p id="create-building-status" class="status-message"></p>
+            </div>
+          </form>
         </div>
 
         <div class="table-wrapper">
@@ -109,12 +146,36 @@
       </section>
 
       <!-- Leituras de sensores -->
-      <section class="card panel">
+      <section id="sensors" class="card panel">
         <div class="panel-header">
           <h3>Últimas leituras de sensores</h3>
           <button id="reload-readings" class="btn-secondary">
             Recarregar
           </button>
+        </div>
+
+        <div id="sensor-admin-panel" class="admin-panel hidden">
+          <h4>Adicionar sensor</h4>
+          <form id="create-sensor-form" class="compact-form">
+            <div class="form-grid">
+              <label class="field">
+                <span>Nome</span>
+                <input type="text" id="sensor-name" name="name" required />
+              </label>
+              <label class="field">
+                <span>Tipo</span>
+                <input type="text" id="sensor-type" name="type" placeholder="Ex.: Smoke" required />
+              </label>
+              <label class="field">
+                <span>ID do edifício</span>
+                <input type="number" id="sensor-building-id" name="buildingId" min="1" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Guardar sensor</button>
+              <p id="create-sensor-status" class="status-message"></p>
+            </div>
+          </form>
         </div>
 
         <div class="table-wrapper">
@@ -123,12 +184,39 @@
               <tr>
                 <th>Data / Hora</th>
                 <th>Sensor</th>
+                <th>ID Sensor</th>
+                <th>ID Edifício</th>
                 <th>Valor</th>
               </tr>
             </thead>
             <tbody id="readings-table-body">
               <tr>
-                <td colspan="3">A carregar...</td>
+                <td colspan="5">A carregar...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Utilizadores (apenas administradores) -->
+      <section id="users" class="card panel admin-only">
+        <div class="panel-header">
+          <h3>Utilizadores registados</h3>
+          <button id="reload-users" class="btn-secondary">Recarregar</button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome de utilizador</th>
+                <th>Perfil</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <tr>
+                <td colspan="3">Visível apenas para administradores.</td>
               </tr>
             </tbody>
           </table>
@@ -136,7 +224,7 @@
       </section>
 
       <!-- Alertas -->
-      <section class="card panel">
+      <section id="alerts" class="card panel">
         <div class="panel-header">
           <h3>Alertas recentes</h3>
           <button id="reload-alerts" class="btn-secondary">
@@ -166,7 +254,7 @@
 
 
       <!-- Incidentes -->
-      <section class="card panel">
+      <section id="incidents" class="card panel">
         <div class="panel-header">
           <h3>Incidentes recentes</h3>
           <button id="reload-incidents" class="btn-secondary">
@@ -196,6 +284,22 @@
     </main>
   </div>
 
+  <div id="building-modal" class="modal hidden">
+    <div class="modal-content" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted">Edifício</p>
+          <h3 id="building-modal-title">Detalhes</h3>
+        </div>
+        <button id="close-building-modal" class="btn-ghost">Fechar</button>
+      </div>
+
+      <div id="building-modal-body" class="modal-body">
+        <p>A carregar detalhes...</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     // =====================================
     // CONFIG – AJUSTA PARA AZURE DEPOIS
@@ -206,6 +310,8 @@
     const ROLE_KEY = "safehome_role";
 
     let buildingsCache = [];
+    let sensorsCache = [];
+    let sensorsCacheLoaded = false;
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
@@ -234,6 +340,7 @@
     function ensureAuthenticated() {
       const token = getToken();
       if (!token) {
+        showGlobalMessage("A tua sessão terminou. Faz login novamente.", "error");
         window.location.href = "login.html";
         return false;
       }
@@ -248,6 +355,29 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    function redirectToLogin() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+      localStorage.removeItem(ROLE_KEY);
+      window.location.href = "login.html";
+    }
+
+    function showGlobalMessage(message, type = "info") {
+      const banner = document.getElementById("global-status");
+      if (!banner) return;
+
+      banner.textContent = message || "";
+      banner.classList.remove("error", "success", "hidden");
+
+      if (!message) {
+        banner.classList.add("hidden");
+        return;
+      }
+
+      if (type === "error") banner.classList.add("error");
+      if (type === "success") banner.classList.add("success");
     }
 
     async function apiFetch(path, options = {}) {
@@ -269,6 +399,12 @@
         ...options,
         headers,
       });
+
+      if (response.status === 401 || response.status === 403) {
+        showGlobalMessage("Sessão expirada. Volta a iniciar sessão.", "error");
+        redirectToLogin();
+        return Promise.reject(new Error("Sessão expirada."));
+      }
 
       if (!response.ok) {
         const text = await response.text().catch(() => "");
@@ -310,6 +446,32 @@
       }
     }
 
+    function getCurrentRole() {
+      const storedRole = localStorage.getItem(ROLE_KEY);
+      if (storedRole) return storedRole;
+
+      const token = getToken();
+      const roleFromToken = token ? extractRole(parseJwt(token)) : null;
+      if (roleFromToken) {
+        localStorage.setItem(ROLE_KEY, roleFromToken);
+      }
+      return roleFromToken;
+    }
+
+    function isAdmin() {
+      const role = getCurrentRole();
+      return role && role.toString().toLowerCase() === "admin";
+    }
+
+    async function ensureSensorsCache(force = false) {
+      if (!sensorsCacheLoaded || force) {
+        const sensors = await apiFetch("/api/Sensors");
+        sensorsCache = Array.isArray(sensors) ? sensors : [];
+        sensorsCacheLoaded = true;
+      }
+      return sensorsCache;
+    }
+
     // ----------------------------
     // Edifícios
     // GET /api/Buildings
@@ -347,7 +509,7 @@
             const risk = b.riskType || "-";
 
             return `
-              <tr>
+              <tr class="clickable-row" data-building-id="${escapeHtml(id)}">
                 <td>${escapeHtml(id)}</td>
                 <td>${escapeHtml(name)}</td>
                 <td>${escapeHtml(address)}</td>
@@ -358,6 +520,7 @@
           .join("");
 
         tbody.innerHTML = rowsHtml;
+        attachBuildingRowHandlers();
       } catch (err) {
         console.error(err);
         tbody.innerHTML = `
@@ -371,12 +534,131 @@
       }
     }
 
+    function attachBuildingRowHandlers() {
+      document
+        .querySelectorAll("#buildings-table-body .clickable-row")
+        .forEach((row) => {
+          row.addEventListener("click", () => {
+            const id = Number(row.getAttribute("data-building-id"));
+            if (!Number.isNaN(id)) {
+              showBuildingDetails(id);
+            }
+          });
+        });
+    }
+
+    function setModalVisibility(visible) {
+      const modal = document.getElementById("building-modal");
+      if (!modal) return;
+
+      if (visible) {
+        modal.classList.remove("hidden");
+      } else {
+        modal.classList.add("hidden");
+      }
+    }
+
+    function renderWeather(weather) {
+      if (!weather) {
+        return "<p class=\"muted-box\">Meteorologia indisponível.</p>";
+      }
+
+      const temperature =
+        weather.temperature != null
+          ? `${weather.temperature.toFixed(1)}ºC`
+          : "–";
+      const humidity =
+        weather.humidity != null ? `${weather.humidity}%` : "–";
+      const description = weather.description || "Sem descrição";
+
+      return `
+        <div class="modal-section">
+          <h4>Meteorologia atual</h4>
+          <p>${escapeHtml(description)}</p>
+          <p class="muted-box">Temperatura: ${escapeHtml(
+            temperature
+          )} · Humidade: ${escapeHtml(humidity)}</p>
+        </div>
+      `;
+    }
+
+    function renderSensorsForBuilding(list) {
+      if (!list.length) {
+        return "<p class=\"muted-box\">Sem sensores associados.</p>";
+      }
+
+      const pills = list
+        .map(
+          (s) => `
+          <span class="pill">#${escapeHtml(s.id)} · ${escapeHtml(
+            s.name || "Sensor"
+          )} (${escapeHtml(s.type || "-")})</span>
+        `
+        )
+        .join("");
+
+      return `<div class="pill-list">${pills}</div>`;
+    }
+
+    async function showBuildingDetails(buildingId) {
+      const modalBody = document.getElementById("building-modal-body");
+      const modalTitle = document.getElementById("building-modal-title");
+
+      if (!modalBody || !modalTitle) return;
+
+      setModalVisibility(true);
+      modalBody.innerHTML = "<p>A carregar detalhes...</p>";
+      modalTitle.textContent = `Edifício #${buildingId}`;
+
+      try {
+        const detail = await apiFetch(`/api/Buildings/${buildingId}`);
+        const building = detail.DadosEdificio || detail.dadosEdificio || detail;
+        const weather = detail.MeteorologiaAtual || detail.meteorologiaAtual;
+
+        const sensors = await ensureSensorsCache();
+        const buildingSensors = sensors.filter(
+          (s) => Number(s.buildingId) === Number(buildingId)
+        );
+
+        const name = building.name || `Edifício #${buildingId}`;
+        const address = building.address || "Sem morada";
+        const risk = building.riskType || "-";
+        const coords =
+          building.latitude != null && building.longitude != null
+            ? `${building.latitude}, ${building.longitude}`
+            : "Coord. indisponíveis";
+
+        modalTitle.textContent = name;
+        modalBody.innerHTML = `
+          <div class="modal-body">
+            <div class="modal-section">
+              <h4>Identificação</h4>
+              <p>${escapeHtml(address)}</p>
+              <p class="muted-box">Risco: ${escapeHtml(risk)} · Coordenadas: ${escapeHtml(
+          coords
+        )}</p>
+            </div>
+            ${renderWeather(weather)}
+            <div class="modal-section">
+              <h4>Sensores associados</h4>
+              ${renderSensorsForBuilding(buildingSensors)}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        modalBody.innerHTML = `<p class="status-message error">${escapeHtml(
+          err.message || "Não foi possível carregar o edifício"
+        )}</p>`;
+      }
+    }
+
     // ----------------------------
     // Stats: sensores / alertas / incidentes
     // ----------------------------
     async function loadSensorsStats() {
       try {
-        const sensors = await apiFetch("/api/Sensors");
+        const sensors = await ensureSensorsCache(true);
         const count = Array.isArray(sensors) ? sensors.length : "–";
         document.getElementById("stat-sensors").textContent = count;
       } catch (err) {
@@ -416,6 +698,52 @@
     }
 
     // ----------------------------
+    // Utilizadores (apenas admin)
+    // GET /api/Users
+    // ----------------------------
+    async function loadUsers() {
+      const tbody = document.getElementById("users-table-body");
+      if (!tbody || !isAdmin()) return;
+
+      tbody.innerHTML = `
+        <tr><td colspan="3">A carregar...</td></tr>
+      `;
+
+      try {
+        const users = await apiFetch("/api/Users");
+        const list = Array.isArray(users) ? users : [];
+
+        if (!list.length) {
+          tbody.innerHTML = `
+            <tr><td colspan="3">Nenhum utilizador encontrado.</td></tr>
+          `;
+          return;
+        }
+
+        const rows = list
+          .map(
+            (u) => `
+              <tr>
+                <td>${escapeHtml(u.id)}</td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.role || "-")}</td>
+              </tr>
+            `
+          )
+          .join("");
+
+        tbody.innerHTML = rows;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `
+          <tr><td colspan="3">Erro ao carregar utilizadores: ${escapeHtml(
+            err.message
+          )}</td></tr>
+        `;
+      }
+    }
+
+    // ----------------------------
     // Leituras de sensores
     // GET /api/SensorReadings
     // ----------------------------
@@ -423,7 +751,7 @@
       const tbody = document.getElementById("readings-table-body");
       tbody.innerHTML = `
         <tr>
-          <td colspan="3">A carregar...</td>
+          <td colspan="5">A carregar...</td>
         </tr>
       `;
 
@@ -434,7 +762,7 @@
         if (!list.length) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="3">Nenhuma leitura encontrada.</td>
+              <td colspan="5">Nenhuma leitura encontrada.</td>
             </tr>
           `;
           return;
@@ -454,20 +782,35 @@
               ? new Date(r.timestamp).toLocaleString("pt-PT")
               : "-";
 
+            const sensorId =
+              (r.sensor && r.sensor.id != null
+                ? r.sensor.id
+                : r.sensorId != null
+                ? r.sensorId
+                : null);
+
             const sensorLabel =
               (r.sensor &&
-                (r.sensor.name || `Sensor #${r.sensor.id}`)) ||
-              (r.sensorId != null
-                ? `Sensor #${r.sensorId}`
+                (r.sensor.name || `Sensor #${sensorId ?? "?"}`)) ||
+              (sensorId != null
+                ? `Sensor #${sensorId}`
                 : "Sensor");
 
-            const value =
-              r.value != null ? r.value.toString() : "-";
+            const buildingId =
+              (r.sensor && r.sensor.buildingId != null
+                ? r.sensor.buildingId
+                : r.buildingId != null
+                ? r.buildingId
+                : null);
+
+            const value = r.value != null ? r.value.toString() : "-";
 
             return `
               <tr>
                 <td>${escapeHtml(ts)}</td>
                 <td>${escapeHtml(sensorLabel)}</td>
+                <td>${escapeHtml(sensorId ?? "-")}</td>
+                <td>${escapeHtml(buildingId ?? "-")}</td>
                 <td>${escapeHtml(value)}</td>
               </tr>
             `;
@@ -479,7 +822,7 @@
         console.error(err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="3">Erro ao carregar leituras: ${escapeHtml(
+            <td colspan="5">Erro ao carregar leituras: ${escapeHtml(
           err.message
         )}</td>
           </tr>
@@ -600,7 +943,6 @@
             (a, b) =>
               new Date(b.startedAt || 0) - new Date(a.startedAt || 0)
           )
-          .reverse()
           .slice(0, limit);
 
         const rowsHtml = sorted
@@ -656,16 +998,46 @@
       await loadAlertsTable();
       await loadLatestReadings();
       await loadLatestIncidents();
+      if (isAdmin()) {
+        await loadUsers();
+      }
     }
 
     // ----------------------------
     // Inicialização
     // ----------------------------
-        document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", () => {
       if (!ensureAuthenticated()) return;
 
       setWelcomeMessage();
       loadStats();
+
+      const adminPanels = document.querySelectorAll(".admin-panel");
+      if (isAdmin()) {
+        adminPanels.forEach((panel) => panel.classList.remove("hidden"));
+        document
+          .querySelectorAll(".admin-only")
+          .forEach((el) => el.classList.remove("admin-only"));
+      }
+
+      // Navegação rápida entre secções
+      document.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          const targetId = link.getAttribute("href");
+          if (!targetId || !targetId.startsWith("#")) return;
+
+          event.preventDefault();
+          const target = document.querySelector(targetId);
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth" });
+          }
+
+          document
+            .querySelectorAll(".sidebar-nav .nav-link")
+            .forEach((l) => l.classList.remove("active"));
+          link.classList.add("active");
+        });
+      });
 
       document
         .getElementById("reload-buildings")
@@ -679,18 +1051,123 @@
         .getElementById("reload-incidents")
         .addEventListener("click", () => loadLatestIncidents());
 
-      // 👉 NOVO: recarregar alertas
       document
         .getElementById("reload-alerts")
         .addEventListener("click", () => loadAlertsTable());
+
+      const reloadUsersBtn = document.getElementById("reload-users");
+      if (reloadUsersBtn) {
+        reloadUsersBtn.addEventListener("click", () => loadUsers());
+      }
 
       document
         .getElementById("btn-logout")
         .addEventListener("click", () => {
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USERNAME_KEY);
+          localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
+
+      const modal = document.getElementById("building-modal");
+      const closeModal = document.getElementById("close-building-modal");
+      if (modal && closeModal) {
+        closeModal.addEventListener("click", () => setModalVisibility(false));
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) {
+            setModalVisibility(false);
+          }
+        });
+      }
+
+      const createBuildingForm = document.getElementById("create-building-form");
+      if (createBuildingForm) {
+        createBuildingForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = document.getElementById("create-building-status");
+          status.textContent = "A guardar...";
+          status.classList.remove("error", "success");
+
+          const name = document.getElementById("building-name").value.trim();
+          const address = document
+            .getElementById("building-address")
+            .value.trim();
+          const latitude = parseFloat(
+            document.getElementById("building-latitude").value
+          );
+          const longitude = parseFloat(
+            document.getElementById("building-longitude").value
+          );
+          const riskType = document
+            .getElementById("building-risk")
+            .value.trim();
+
+          try {
+            const body = {
+              name,
+              address,
+              latitude,
+              longitude,
+              riskType: riskType || "None",
+            };
+
+            const created = await apiFetch("/api/Buildings", {
+              method: "POST",
+              body: JSON.stringify(body),
+            });
+
+            if (created) {
+              buildingsCache.push(created);
+            }
+
+            status.textContent = "Edifício criado com sucesso.";
+            status.classList.add("success");
+            createBuildingForm.reset();
+            await loadBuildings();
+          } catch (err) {
+            console.error(err);
+            status.textContent = err.message || "Erro ao criar edifício.";
+            status.classList.add("error");
+          }
+        });
+      }
+
+      const createSensorForm = document.getElementById("create-sensor-form");
+      if (createSensorForm) {
+        createSensorForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = document.getElementById("create-sensor-status");
+          status.textContent = "A guardar...";
+          status.classList.remove("error", "success");
+
+          const name = document.getElementById("sensor-name").value.trim();
+          const type = document.getElementById("sensor-type").value.trim();
+          const buildingIdValue = document.getElementById(
+            "sensor-building-id"
+          ).value;
+          const buildingId = buildingIdValue ? Number(buildingIdValue) : null;
+
+          try {
+            await apiFetch("/api/Sensors", {
+              method: "POST",
+              body: JSON.stringify({ name, type, buildingId }),
+            });
+
+            status.textContent = "Sensor criado com sucesso.";
+            status.classList.add("success");
+            createSensorForm.reset();
+            await Promise.all([
+              loadSensorsStats(),
+              loadLatestReadings(),
+              loadAlertsTable(),
+            ]);
+          } catch (err) {
+            console.error(err);
+            status.textContent = err.message || "Erro ao criar sensor.";
+            status.classList.add("error");
+          }
+        });
+      }
     });
 
   </script>
