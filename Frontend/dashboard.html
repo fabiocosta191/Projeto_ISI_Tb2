@@ -21,16 +21,16 @@
       </div>
 
       <nav class="sidebar-nav">
-        <a href="#" class="nav-link active">
+        <a href="#top" class="nav-link active">
           <span>Dashboard</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#buildings" class="nav-link">
           <span>Edifícios</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#sensors" class="nav-link">
           <span>Sensores</span>
         </a>
-        <a href="#" class="nav-link">
+        <a href="#alerts" class="nav-link">
           <span>Alertas / Incidentes</span>
         </a>
       </nav>
@@ -41,7 +41,7 @@
     </aside>
 
     <!-- Conteúdo principal -->
-    <main class="main">
+    <main id="top" class="main">
       <!-- Topbar -->
       <header class="topbar">
         <div>
@@ -53,8 +53,10 @@
         </div>
       </header>
 
+      <div id="global-status" class="banner hidden" role="status" aria-live="polite"></div>
+
       <!-- Cards de resumo -->
-      <section class="cards-grid">
+      <section id="summary" class="cards-grid">
         <article class="card stat-card">
           <h3>Edifícios</h3>
           <p id="stat-buildings" class="stat-number">–</p>
@@ -81,7 +83,7 @@
       </section>
 
       <!-- Tabela de edifícios -->
-      <section class="card panel">
+      <section id="buildings" class="card panel">
         <div class="panel-header">
           <h3>Lista de edifícios</h3>
           <button id="reload-buildings" class="btn-secondary">
@@ -109,7 +111,7 @@
       </section>
 
       <!-- Leituras de sensores -->
-      <section class="card panel">
+      <section id="sensors" class="card panel">
         <div class="panel-header">
           <h3>Últimas leituras de sensores</h3>
           <button id="reload-readings" class="btn-secondary">
@@ -136,7 +138,7 @@
       </section>
 
       <!-- Alertas -->
-      <section class="card panel">
+      <section id="alerts" class="card panel">
         <div class="panel-header">
           <h3>Alertas recentes</h3>
           <button id="reload-alerts" class="btn-secondary">
@@ -166,7 +168,7 @@
 
 
       <!-- Incidentes -->
-      <section class="card panel">
+      <section id="incidents" class="card panel">
         <div class="panel-header">
           <h3>Incidentes recentes</h3>
           <button id="reload-incidents" class="btn-secondary">
@@ -234,6 +236,7 @@
     function ensureAuthenticated() {
       const token = getToken();
       if (!token) {
+        showGlobalMessage("A tua sessão terminou. Faz login novamente.", "error");
         window.location.href = "login.html";
         return false;
       }
@@ -248,6 +251,29 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    function redirectToLogin() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+      localStorage.removeItem(ROLE_KEY);
+      window.location.href = "login.html";
+    }
+
+    function showGlobalMessage(message, type = "info") {
+      const banner = document.getElementById("global-status");
+      if (!banner) return;
+
+      banner.textContent = message || "";
+      banner.classList.remove("error", "success", "hidden");
+
+      if (!message) {
+        banner.classList.add("hidden");
+        return;
+      }
+
+      if (type === "error") banner.classList.add("error");
+      if (type === "success") banner.classList.add("success");
     }
 
     async function apiFetch(path, options = {}) {
@@ -269,6 +295,12 @@
         ...options,
         headers,
       });
+
+      if (response.status === 401 || response.status === 403) {
+        showGlobalMessage("Sessão expirada. Volta a iniciar sessão.", "error");
+        redirectToLogin();
+        return Promise.reject(new Error("Sessão expirada."));
+      }
 
       if (!response.ok) {
         const text = await response.text().catch(() => "");
@@ -600,7 +632,6 @@
             (a, b) =>
               new Date(b.startedAt || 0) - new Date(a.startedAt || 0)
           )
-          .reverse()
           .slice(0, limit);
 
         const rowsHtml = sorted
@@ -661,11 +692,30 @@
     // ----------------------------
     // Inicialização
     // ----------------------------
-        document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", () => {
       if (!ensureAuthenticated()) return;
 
       setWelcomeMessage();
       loadStats();
+
+      // Navegação rápida entre secções
+      document.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          const targetId = link.getAttribute("href");
+          if (!targetId || !targetId.startsWith("#")) return;
+
+          event.preventDefault();
+          const target = document.querySelector(targetId);
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth" });
+          }
+
+          document
+            .querySelectorAll(".sidebar-nav .nav-link")
+            .forEach((l) => l.classList.remove("active"));
+          link.classList.add("active");
+        });
+      });
 
       document
         .getElementById("reload-buildings")
@@ -679,7 +729,6 @@
         .getElementById("reload-incidents")
         .addEventListener("click", () => loadLatestIncidents());
 
-      // 👉 NOVO: recarregar alertas
       document
         .getElementById("reload-alerts")
         .addEventListener("click", () => loadAlertsTable());
@@ -689,6 +738,7 @@
         .addEventListener("click", () => {
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USERNAME_KEY);
+          localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
     });
