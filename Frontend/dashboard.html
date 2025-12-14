@@ -91,6 +91,38 @@
           </button>
         </div>
 
+        <div id="building-admin-panel" class="admin-panel hidden">
+          <h4>Adicionar novo edifício</h4>
+          <form id="create-building-form" class="compact-form">
+            <div class="form-grid">
+              <label class="field">
+                <span>Nome</span>
+                <input type="text" id="building-name" name="name" required />
+              </label>
+              <label class="field">
+                <span>Morada</span>
+                <input type="text" id="building-address" name="address" required />
+              </label>
+              <label class="field">
+                <span>Latitude</span>
+                <input type="number" step="0.000001" id="building-latitude" name="latitude" required />
+              </label>
+              <label class="field">
+                <span>Longitude</span>
+                <input type="number" step="0.000001" id="building-longitude" name="longitude" required />
+              </label>
+              <label class="field">
+                <span>Tipo de risco</span>
+                <input type="text" id="building-risk" name="riskType" placeholder="Ex.: Incêndio" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Guardar edifício</button>
+              <p id="create-building-status" class="status-message"></p>
+            </div>
+          </form>
+        </div>
+
         <div class="table-wrapper">
           <table class="data-table">
             <thead>
@@ -119,18 +151,44 @@
           </button>
         </div>
 
+        <div id="sensor-admin-panel" class="admin-panel hidden">
+          <h4>Adicionar sensor</h4>
+          <form id="create-sensor-form" class="compact-form">
+            <div class="form-grid">
+              <label class="field">
+                <span>Nome</span>
+                <input type="text" id="sensor-name" name="name" required />
+              </label>
+              <label class="field">
+                <span>Tipo</span>
+                <input type="text" id="sensor-type" name="type" placeholder="Ex.: Smoke" required />
+              </label>
+              <label class="field">
+                <span>ID do edifício</span>
+                <input type="number" id="sensor-building-id" name="buildingId" min="1" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Guardar sensor</button>
+              <p id="create-sensor-status" class="status-message"></p>
+            </div>
+          </form>
+        </div>
+
         <div class="table-wrapper">
           <table class="data-table">
             <thead>
               <tr>
                 <th>Data / Hora</th>
                 <th>Sensor</th>
+                <th>ID Sensor</th>
+                <th>ID Edifício</th>
                 <th>Valor</th>
               </tr>
             </thead>
             <tbody id="readings-table-body">
               <tr>
-                <td colspan="3">A carregar...</td>
+                <td colspan="5">A carregar...</td>
               </tr>
             </tbody>
           </table>
@@ -342,6 +400,23 @@
       }
     }
 
+    function getCurrentRole() {
+      const storedRole = localStorage.getItem(ROLE_KEY);
+      if (storedRole) return storedRole;
+
+      const token = getToken();
+      const roleFromToken = token ? extractRole(parseJwt(token)) : null;
+      if (roleFromToken) {
+        localStorage.setItem(ROLE_KEY, roleFromToken);
+      }
+      return roleFromToken;
+    }
+
+    function isAdmin() {
+      const role = getCurrentRole();
+      return role && role.toString().toLowerCase() === "admin";
+    }
+
     // ----------------------------
     // Edifícios
     // GET /api/Buildings
@@ -455,7 +530,7 @@
       const tbody = document.getElementById("readings-table-body");
       tbody.innerHTML = `
         <tr>
-          <td colspan="3">A carregar...</td>
+          <td colspan="5">A carregar...</td>
         </tr>
       `;
 
@@ -466,7 +541,7 @@
         if (!list.length) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="3">Nenhuma leitura encontrada.</td>
+              <td colspan="5">Nenhuma leitura encontrada.</td>
             </tr>
           `;
           return;
@@ -486,20 +561,35 @@
               ? new Date(r.timestamp).toLocaleString("pt-PT")
               : "-";
 
+            const sensorId =
+              (r.sensor && r.sensor.id != null
+                ? r.sensor.id
+                : r.sensorId != null
+                ? r.sensorId
+                : null);
+
             const sensorLabel =
               (r.sensor &&
-                (r.sensor.name || `Sensor #${r.sensor.id}`)) ||
-              (r.sensorId != null
-                ? `Sensor #${r.sensorId}`
+                (r.sensor.name || `Sensor #${sensorId ?? "?"}`)) ||
+              (sensorId != null
+                ? `Sensor #${sensorId}`
                 : "Sensor");
 
-            const value =
-              r.value != null ? r.value.toString() : "-";
+            const buildingId =
+              (r.sensor && r.sensor.buildingId != null
+                ? r.sensor.buildingId
+                : r.buildingId != null
+                ? r.buildingId
+                : null);
+
+            const value = r.value != null ? r.value.toString() : "-";
 
             return `
               <tr>
                 <td>${escapeHtml(ts)}</td>
                 <td>${escapeHtml(sensorLabel)}</td>
+                <td>${escapeHtml(sensorId ?? "-")}</td>
+                <td>${escapeHtml(buildingId ?? "-")}</td>
                 <td>${escapeHtml(value)}</td>
               </tr>
             `;
@@ -511,7 +601,7 @@
         console.error(err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="3">Erro ao carregar leituras: ${escapeHtml(
+            <td colspan="5">Erro ao carregar leituras: ${escapeHtml(
           err.message
         )}</td>
           </tr>
@@ -698,6 +788,11 @@
       setWelcomeMessage();
       loadStats();
 
+      const adminPanels = document.querySelectorAll(".admin-panel");
+      if (isAdmin()) {
+        adminPanels.forEach((panel) => panel.classList.remove("hidden"));
+      }
+
       // Navegação rápida entre secções
       document.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
         link.addEventListener("click", (event) => {
@@ -741,6 +836,95 @@
           localStorage.removeItem(ROLE_KEY);
           window.location.href = "login.html";
         });
+
+      const createBuildingForm = document.getElementById("create-building-form");
+      if (createBuildingForm) {
+        createBuildingForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = document.getElementById("create-building-status");
+          status.textContent = "A guardar...";
+          status.classList.remove("error", "success");
+
+          const name = document.getElementById("building-name").value.trim();
+          const address = document
+            .getElementById("building-address")
+            .value.trim();
+          const latitude = parseFloat(
+            document.getElementById("building-latitude").value
+          );
+          const longitude = parseFloat(
+            document.getElementById("building-longitude").value
+          );
+          const riskType = document
+            .getElementById("building-risk")
+            .value.trim();
+
+          try {
+            const body = {
+              name,
+              address,
+              latitude,
+              longitude,
+              riskType: riskType || "None",
+            };
+
+            const created = await apiFetch("/api/Buildings", {
+              method: "POST",
+              body: JSON.stringify(body),
+            });
+
+            if (created) {
+              buildingsCache.push(created);
+            }
+
+            status.textContent = "Edifício criado com sucesso.";
+            status.classList.add("success");
+            createBuildingForm.reset();
+            await loadBuildings();
+          } catch (err) {
+            console.error(err);
+            status.textContent = err.message || "Erro ao criar edifício.";
+            status.classList.add("error");
+          }
+        });
+      }
+
+      const createSensorForm = document.getElementById("create-sensor-form");
+      if (createSensorForm) {
+        createSensorForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = document.getElementById("create-sensor-status");
+          status.textContent = "A guardar...";
+          status.classList.remove("error", "success");
+
+          const name = document.getElementById("sensor-name").value.trim();
+          const type = document.getElementById("sensor-type").value.trim();
+          const buildingIdValue = document.getElementById(
+            "sensor-building-id"
+          ).value;
+          const buildingId = buildingIdValue ? Number(buildingIdValue) : null;
+
+          try {
+            await apiFetch("/api/Sensors", {
+              method: "POST",
+              body: JSON.stringify({ name, type, buildingId }),
+            });
+
+            status.textContent = "Sensor criado com sucesso.";
+            status.classList.add("success");
+            createSensorForm.reset();
+            await Promise.all([
+              loadSensorsStats(),
+              loadLatestReadings(),
+              loadAlertsTable(),
+            ]);
+          } catch (err) {
+            console.error(err);
+            status.textContent = err.message || "Erro ao criar sensor.";
+            status.classList.add("error");
+          }
+        });
+      }
     });
 
   </script>
