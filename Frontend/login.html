@@ -51,11 +51,32 @@
 
     <script>
         // Ajusta para a porta correta da tua API (vê no launchSettings.json ou no Swagger)
-        const API_BASE_URL = "https://localhost:7152";
+        const API_BASE_URL = "https://safehomeapi-22997-23015-h8dufye2amezh5f4.spaincentral-01.azurewebsites.net";
         const LOGIN_ENDPOINT = "/api/Auth/Login"; // Respeita maiúsculas/minúsculas
 
         const form = document.getElementById("login-form");
         const statusEl = document.getElementById("login-status");
+        const ROLE_KEY = "safehome_role";
+
+        function parseJwt(token) {
+            try {
+                const payloadBase64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+                const decoded = atob(payloadBase64);
+                return JSON.parse(decoded);
+            } catch (err) {
+                console.warn("Não foi possível ler o token:", err);
+                return null;
+            }
+        }
+
+        function extractRole(payload) {
+            if (!payload) return null;
+            return (
+                payload.role ||
+                payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+                null
+            );
+        }
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -88,6 +109,14 @@
                 // Guarda o JWT para usar nas próximas chamadas
                 localStorage.setItem("safehome_token", token);
                 localStorage.setItem("safehome_username", username);
+
+                const payload = parseJwt(token);
+                const role = extractRole(payload);
+                if (role) {
+                    localStorage.setItem(ROLE_KEY, role);
+                } else {
+                    localStorage.removeItem(ROLE_KEY);
+                }
 
 
                 statusEl.textContent = "Login efetuado com sucesso!";

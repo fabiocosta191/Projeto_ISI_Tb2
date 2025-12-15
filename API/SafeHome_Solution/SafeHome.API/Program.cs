@@ -121,11 +121,11 @@ var app = builder.Build();
 // ==========================================
 
 // A. Ambiente de Desenvolvimento
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+//}
 
 app.UseHttpsRedirection();
 
