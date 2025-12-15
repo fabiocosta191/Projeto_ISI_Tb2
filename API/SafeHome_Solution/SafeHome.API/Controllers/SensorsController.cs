@@ -114,6 +114,7 @@ namespace SafeHome.API.Controllers
         /// Remove um sensor.
         /// </summary>
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(204)]
         [ProducesResponseType(404)]
         public async Task<IActionResult> DeleteSensor(int id)
