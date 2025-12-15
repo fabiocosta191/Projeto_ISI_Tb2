@@ -50,8 +50,24 @@ namespace SafeHome.API.Services
 
         public async Task<bool> DeleteBuilding(int id)
         {
-            var building = await _context.Buildings.FindAsync(id);
+            var building = await _context.Buildings
+                .Include(b => b.Sensors)
+                .FirstOrDefaultAsync(b => b.Id == id);
             if (building == null) return false;
+
+            var incidents = _context.Incidents.Where(i => i.BuildingId == id);
+            _context.Incidents.RemoveRange(incidents);
+
+            if (building.Sensors != null && building.Sensors.Any())
+            {
+                var sensorIds = building.Sensors.Select(s => s.Id).ToList();
+                var readingsToRemove = _context.SensorReadings.Where(r => sensorIds.Contains(r.SensorId));
+                var alertsToRemove = _context.Alerts.Where(a => sensorIds.Contains(a.SensorId));
+
+                _context.SensorReadings.RemoveRange(readingsToRemove);
+                _context.Alerts.RemoveRange(alertsToRemove);
+                _context.Sensors.RemoveRange(building.Sensors);
+            }
 
             _context.Buildings.Remove(building);
             await _context.SaveChangesAsync();

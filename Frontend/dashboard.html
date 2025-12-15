@@ -52,7 +52,7 @@
           <p id="welcome-text">Bem-vindo(a)</p>
         </div>
         <div class="topbar-right">
-          <span id="role-badge" class="badge">Perfil</span>
+          <button id="role-badge" class="badge badge-button" type="button" aria-label="Abrir perfil">Perfil</button>
         </div>
       </header>
 
@@ -134,11 +134,12 @@
                 <th>Nome</th>
                 <th>Morada</th>
                 <th>Risco</th>
+                <th id="building-actions-header" class="admin-col hidden-column">Ações</th>
               </tr>
             </thead>
             <tbody id="buildings-table-body">
               <tr>
-                <td colspan="4">A carregar...</td>
+                <td colspan="5">A carregar...</td>
               </tr>
             </tbody>
           </table>
@@ -187,11 +188,12 @@
                 <th>ID Sensor</th>
                 <th>ID Edifício</th>
                 <th>Valor</th>
+                <th id="sensor-actions-header" class="admin-col hidden-column">Ações</th>
               </tr>
             </thead>
             <tbody id="readings-table-body">
               <tr>
-                <td colspan="5">A carregar...</td>
+                <td colspan="6">A carregar...</td>
               </tr>
             </tbody>
           </table>
@@ -300,6 +302,50 @@
     </div>
   </div>
 
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-content" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted">Perfil</p>
+          <h3 id="profile-modal-title">Os meus dados</h3>
+        </div>
+        <button id="close-profile-modal" class="btn-ghost">Fechar</button>
+      </div>
+
+      <div class="modal-body" id="profile-modal-body">
+        <div class="modal-section">
+          <h4>Dados da conta</h4>
+          <p id="profile-username" class="muted-box"></p>
+          <p id="profile-role" class="muted-box"></p>
+        </div>
+
+        <div class="modal-section">
+          <h4>Alterar password</h4>
+          <form id="change-password-form" class="compact-form">
+            <div class="form-grid single-column">
+              <label class="field">
+                <span>Password atual</span>
+                <input type="password" id="current-password" required autocomplete="current-password" />
+              </label>
+              <label class="field">
+                <span>Nova password</span>
+                <input type="password" id="new-password" minlength="6" required autocomplete="new-password" />
+              </label>
+              <label class="field">
+                <span>Confirmar nova password</span>
+                <input type="password" id="confirm-password" minlength="6" required autocomplete="new-password" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Atualizar password</button>
+              <p id="change-password-status" class="status-message"></p>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // =====================================
     // CONFIG – AJUSTA PARA AZURE DEPOIS
@@ -312,6 +358,11 @@
     let buildingsCache = [];
     let sensorsCache = [];
     let sensorsCacheLoaded = false;
+
+    function invalidateSensorsCache() {
+      sensorsCache = [];
+      sensorsCacheLoaded = false;
+    }
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
@@ -463,6 +514,27 @@
       return role && role.toString().toLowerCase() === "admin";
     }
 
+    function applyAdminVisibility() {
+      const admin = isAdmin();
+      document
+        .querySelectorAll(".admin-panel")
+        .forEach((panel) => panel.classList.toggle("hidden", !admin));
+
+      document
+        .querySelectorAll(".admin-col")
+        .forEach((col) => col.classList.toggle("hidden-column", !admin));
+
+      document
+        .querySelectorAll(".admin-action")
+        .forEach((action) => action.classList.toggle("hidden", !admin));
+
+      if (admin) {
+        document
+          .querySelectorAll(".nav-link.admin-only")
+          .forEach((el) => el.classList.remove("admin-only"));
+      }
+    }
+
     async function ensureSensorsCache(force = false) {
       if (!sensorsCacheLoaded || force) {
         const sensors = await apiFetch("/api/Sensors");
@@ -478,9 +550,13 @@
     // ----------------------------
     async function loadBuildings() {
       const tbody = document.getElementById("buildings-table-body");
+      const showActions = isAdmin();
+      const header = document.getElementById("building-actions-header");
+      if (header) header.classList.toggle("hidden-column", !showActions);
+
       tbody.innerHTML = `
         <tr>
-          <td colspan="4">A carregar...</td>
+          <td colspan="${showActions ? 5 : 4}">A carregar...</td>
         </tr>
       `;
 
@@ -491,7 +567,7 @@
         if (!buildingsCache.length) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="4">Nenhum edifício encontrado.</td>
+              <td colspan="${showActions ? 5 : 4}">Nenhum edifício encontrado.</td>
             </tr>
           `;
           document.getElementById("stat-buildings").textContent = "0";
@@ -507,6 +583,17 @@
             const name = b.name || `Edifício #${id}`;
             const address = b.address || "-";
             const risk = b.riskType || "-";
+            const actionCell = showActions
+              ? `<td class="admin-col">
+                  <button
+                    class="btn-danger admin-action"
+                    data-delete-building="${escapeHtml(id)}"
+                    aria-label="Remover edifício ${escapeHtml(name)}"
+                  >
+                    Remover
+                  </button>
+                </td>`
+              : "";
 
             return `
               <tr class="clickable-row" data-building-id="${escapeHtml(id)}">
@@ -514,6 +601,7 @@
                 <td>${escapeHtml(name)}</td>
                 <td>${escapeHtml(address)}</td>
                 <td>${escapeHtml(risk)}</td>
+                ${actionCell}
               </tr>
             `;
           })
@@ -521,11 +609,12 @@
 
         tbody.innerHTML = rowsHtml;
         attachBuildingRowHandlers();
+        attachBuildingDeleteHandlers();
       } catch (err) {
         console.error(err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="4">Erro ao carregar edifícios: ${escapeHtml(
+            <td colspan="${showActions ? 5 : 4}">Erro ao carregar edifícios: ${escapeHtml(
           err.message
         )}</td>
           </tr>
@@ -547,6 +636,38 @@
         });
     }
 
+    function attachBuildingDeleteHandlers() {
+      document.querySelectorAll("[data-delete-building]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          const buildingId = Number(button.getAttribute("data-delete-building"));
+          if (Number.isNaN(buildingId)) return;
+
+          const confirmed = confirm(
+            "Remover este edifício vai apagar sensores, incidentes e dados associados. Continuar?"
+          );
+          if (!confirmed) return;
+
+          try {
+            await apiFetch(`/api/Buildings/${buildingId}`, { method: "DELETE" });
+            showGlobalMessage("Edifício removido com sucesso.", "success");
+            buildingsCache = buildingsCache.filter((b) => b.id !== buildingId);
+            invalidateSensorsCache();
+            await Promise.all([
+              loadBuildings(),
+              loadSensorsStats(),
+              loadLatestReadings(),
+              loadAlertsTable(),
+              loadIncidentsStats(),
+            ]);
+          } catch (err) {
+            console.error(err);
+            showGlobalMessage(err.message || "Erro ao remover edifício.", "error");
+          }
+        });
+      });
+    }
+
     function setModalVisibility(visible) {
       const modal = document.getElementById("building-modal");
       if (!modal) return;
@@ -555,6 +676,45 @@
         modal.classList.remove("hidden");
       } else {
         modal.classList.add("hidden");
+      }
+    }
+
+    function setProfileModalVisibility(visible) {
+      const modal = document.getElementById("profile-modal");
+      if (!modal) return;
+
+      modal.classList.toggle("hidden", !visible);
+    }
+
+    async function openProfileModal() {
+      setProfileModalVisibility(true);
+      const status = document.getElementById("change-password-status");
+      if (status) {
+        status.textContent = "";
+        status.classList.remove("error", "success");
+      }
+      await loadProfileData();
+    }
+
+    async function loadProfileData() {
+      const usernameEl = document.getElementById("profile-username");
+      const roleEl = document.getElementById("profile-role");
+
+      try {
+        const profile = await apiFetch("/api/Auth/Me");
+        if (usernameEl)
+          usernameEl.textContent = `Utilizador: ${escapeHtml(
+            profile.username || profile.Username || "-"
+          )}`;
+        if (roleEl)
+          roleEl.textContent = `Perfil: ${escapeHtml(
+            profile.role || profile.Role || "-"
+          )}`;
+      } catch (err) {
+        console.error(err);
+        if (usernameEl)
+          usernameEl.textContent = err.message || "Não foi possível carregar o perfil.";
+        if (roleEl) roleEl.textContent = "";
       }
     }
 
@@ -587,13 +747,22 @@
         return "<p class=\"muted-box\">Sem sensores associados.</p>";
       }
 
+      const allowDelete = isAdmin();
       const pills = list
         .map(
-          (s) => `
-          <span class="pill">#${escapeHtml(s.id)} · ${escapeHtml(
-            s.name || "Sensor"
-          )} (${escapeHtml(s.type || "-")})</span>
-        `
+          (s) => {
+            const deleteButton = allowDelete
+              ? `<button class="pill-action admin-action${
+                  allowDelete ? "" : " hidden"
+                }" data-delete-sensor="${escapeHtml(s.id)}">Remover</button>`
+              : "";
+
+            return `
+          <span class="pill pill-with-action">#${escapeHtml(s.id)} · ${escapeHtml(
+              s.name || "Sensor"
+            )} (${escapeHtml(s.type || "-")}) ${deleteButton}</span>
+        `;
+          }
         )
         .join("");
 
@@ -645,6 +814,8 @@
             </div>
           </div>
         `;
+
+        attachSensorDeleteHandlers(modalBody, () => showBuildingDetails(buildingId));
       } catch (err) {
         console.error(err);
         modalBody.innerHTML = `<p class="status-message error">${escapeHtml(
@@ -749,9 +920,13 @@
     // ----------------------------
     async function loadLatestReadings(limit = 10) {
       const tbody = document.getElementById("readings-table-body");
+      const showActions = isAdmin();
+      const header = document.getElementById("sensor-actions-header");
+      if (header) header.classList.toggle("hidden-column", !showActions);
+
       tbody.innerHTML = `
         <tr>
-          <td colspan="5">A carregar...</td>
+          <td colspan="${showActions ? 6 : 5}">A carregar...</td>
         </tr>
       `;
 
@@ -762,7 +937,7 @@
         if (!list.length) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="5">Nenhuma leitura encontrada.</td>
+              <td colspan="${showActions ? 6 : 5}">Nenhuma leitura encontrada.</td>
             </tr>
           `;
           return;
@@ -804,6 +979,16 @@
                 : null);
 
             const value = r.value != null ? r.value.toString() : "-";
+            const actionCell = showActions
+              ? `<td class="admin-col">
+                  <button
+                    class="btn-danger admin-action"
+                    data-delete-sensor="${escapeHtml(sensorId ?? "")}" aria-label="Remover o sensor ${escapeHtml(sensorLabel)}"
+                  >
+                    Remover
+                  </button>
+                </td>`
+              : "";
 
             return `
               <tr>
@@ -812,22 +997,57 @@
                 <td>${escapeHtml(sensorId ?? "-")}</td>
                 <td>${escapeHtml(buildingId ?? "-")}</td>
                 <td>${escapeHtml(value)}</td>
+                ${actionCell}
               </tr>
             `;
           })
           .join("");
 
         tbody.innerHTML = rowsHtml;
+        attachSensorDeleteHandlers();
       } catch (err) {
         console.error(err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="5">Erro ao carregar leituras: ${escapeHtml(
+            <td colspan="${showActions ? 6 : 5}">Erro ao carregar leituras: ${escapeHtml(
           err.message
         )}</td>
           </tr>
         `;
       }
+    }
+
+    function attachSensorDeleteHandlers(container = document, afterDelete) {
+      container.querySelectorAll("[data-delete-sensor]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          const sensorId = Number(button.getAttribute("data-delete-sensor"));
+          if (Number.isNaN(sensorId)) return;
+
+          const confirmed = confirm(
+            "Remover este sensor vai apagar todas as leituras e alertas associados. Continuar?"
+          );
+          if (!confirmed) return;
+
+          try {
+            await apiFetch(`/api/Sensors/${sensorId}`, { method: "DELETE" });
+            showGlobalMessage("Sensor removido com sucesso.", "success");
+            invalidateSensorsCache();
+            await Promise.all([
+              loadSensorsStats(),
+              loadLatestReadings(),
+              loadAlertsTable(),
+            ]);
+
+            if (typeof afterDelete === "function") {
+              await afterDelete();
+            }
+          } catch (err) {
+            console.error(err);
+            showGlobalMessage(err.message || "Erro ao remover sensor.", "error");
+          }
+        });
+      });
     }
 
     // ----------------------------
@@ -1009,16 +1229,10 @@
     document.addEventListener("DOMContentLoaded", () => {
       if (!ensureAuthenticated()) return;
 
+      setRoleBadge();
       setWelcomeMessage();
       loadStats();
-
-      const adminPanels = document.querySelectorAll(".admin-panel");
-      if (isAdmin()) {
-        adminPanels.forEach((panel) => panel.classList.remove("hidden"));
-        document
-          .querySelectorAll(".admin-only")
-          .forEach((el) => el.classList.remove("admin-only"));
-      }
+      applyAdminVisibility();
 
       // Navegação rápida entre secções
       document.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
@@ -1078,6 +1292,25 @@
             setModalVisibility(false);
           }
         });
+      }
+
+      const profileModal = document.getElementById("profile-modal");
+      const closeProfile = document.getElementById("close-profile-modal");
+      if (closeProfile && profileModal) {
+        closeProfile.addEventListener("click", () =>
+          setProfileModalVisibility(false)
+        );
+
+        profileModal.addEventListener("click", (event) => {
+          if (event.target === profileModal) {
+            setProfileModalVisibility(false);
+          }
+        });
+      }
+
+      const roleBadge = document.getElementById("role-badge");
+      if (roleBadge) {
+        roleBadge.addEventListener("click", () => openProfileModal());
       }
 
       const createBuildingForm = document.getElementById("create-building-form");
@@ -1165,6 +1398,57 @@
             console.error(err);
             status.textContent = err.message || "Erro ao criar sensor.";
             status.classList.add("error");
+          }
+        });
+      }
+
+      const changePasswordForm = document.getElementById(
+        "change-password-form"
+      );
+      if (changePasswordForm) {
+        changePasswordForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = document.getElementById("change-password-status");
+          if (status) {
+            status.textContent = "A atualizar password...";
+            status.classList.remove("error", "success");
+          }
+
+          const currentPassword = document
+            .getElementById("current-password")
+            .value.trim();
+          const newPassword = document
+            .getElementById("new-password")
+            .value.trim();
+          const confirmPassword = document
+            .getElementById("confirm-password")
+            .value.trim();
+
+          if (newPassword !== confirmPassword) {
+            if (status) {
+              status.textContent = "As novas passwords não coincidem.";
+              status.classList.add("error");
+            }
+            return;
+          }
+
+          try {
+            await apiFetch("/api/Auth/ChangePassword", {
+              method: "POST",
+              body: JSON.stringify({ currentPassword, newPassword }),
+            });
+
+            if (status) {
+              status.textContent = "Password atualizada com sucesso.";
+              status.classList.add("success");
+            }
+            changePasswordForm.reset();
+          } catch (err) {
+            console.error(err);
+            if (status) {
+              status.textContent = err.message || "Erro ao atualizar password.";
+              status.classList.add("error");
+            }
           }
         });
       }

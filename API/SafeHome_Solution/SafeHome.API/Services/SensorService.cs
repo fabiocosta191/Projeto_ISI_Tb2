@@ -50,6 +50,11 @@ namespace SafeHome.API.Services
             var sensor = await _context.Sensors.FindAsync(id);
             if (sensor == null) return false;
 
+            var sensorReadings = _context.SensorReadings.Where(r => r.SensorId == id);
+            var sensorAlerts = _context.Alerts.Where(a => a.SensorId == id);
+
+            _context.SensorReadings.RemoveRange(sensorReadings);
+            _context.Alerts.RemoveRange(sensorAlerts);
             _context.Sensors.Remove(sensor);
             await _context.SaveChangesAsync();
             return true;
