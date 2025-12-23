@@ -1,0 +1,79 @@
+@startuml
+
+!theme plain
+hide circle
+skinparam linetype ortho
+
+' Entidades
+entity "Users" as user {
+  *Id : int <<PK>>
+  --
+  Username : string
+  PasswordHash : string
+  Role : string
+}
+
+entity "Buildings" as building {
+  *Id : int <<PK>>
+  --
+  Name : string
+  Address : string
+  Latitude : double
+  Longitude : double
+  RiskType : string
+}
+
+entity "Incidents" as incident {
+  *Id : int <<PK>>
+  --
+  Type : string
+  StartedAt : DateTime
+  EndedAt : DateTime?
+  Severity : string
+  Status : string
+  Description : string
+  *BuildingId : int <<FK>>
+}
+
+entity "Sensors" as sensor {
+  *Id : int <<PK>>
+  --
+  Name : string
+  Type : string
+  IsActive : bool
+  *BuildingId : int <<FK>>
+}
+
+entity "SensorReadings" as reading {
+  *Id : int <<PK>>
+  --
+  Value : double
+  Timestamp : DateTime
+  *SensorId : int <<FK>>
+}
+
+entity "Alerts" as alert {
+  *Id : int <<PK>>
+  --
+  Timestamp : DateTime
+  Message : string
+  Severity : string
+  IsResolved : bool
+  *SensorId : int <<FK>>
+}
+
+' Relacionamentos
+
+' Um Edifício pode ter muitos Sensores
+building ||..o{ sensor 
+
+' Um Edifício pode ter muitos Incidentes
+building ||..o{ incident 
+
+' Um Sensor gera muitas Leituras
+sensor ||..o{ reading 
+
+' Um Sensor pode disparar muitos Alertas
+sensor ||..o{ alert 
+
+@enduml
