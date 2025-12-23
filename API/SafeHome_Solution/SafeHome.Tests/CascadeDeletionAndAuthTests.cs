@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SafeHome.API.Controllers;
 using SafeHome.API.DTOs;
@@ -16,11 +15,7 @@ namespace SafeHome.Tests
     {
         private static AppDbContext CreateContext()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
+            return new AppDbContext();
         }
 
         private static IConfiguration CreateJwtConfig()
@@ -285,4 +280,3 @@ namespace SafeHome.Tests
         }
     }
 }
-

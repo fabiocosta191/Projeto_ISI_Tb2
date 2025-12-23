@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.Data;
 using SafeHome.Data.Models;
 
@@ -15,20 +14,18 @@ namespace SafeHome.API.Services
 
         public async Task<List<Alert>> GetAllAsync()
         {
-            return await _context.Alerts
-                .Include(a => a.Sensor)
-                .ToListAsync();
+            return await Task.FromResult(_context.Alerts.ToList());
         }
 
         public async Task<Alert?> GetByIdAsync(int id)
         {
-            return await _context.Alerts
-                .Include(a => a.Sensor)
-                .FirstOrDefaultAsync(a => a.Id == id);
+            return await Task.FromResult(_context.Alerts.FirstOrDefault(a => a.Id == id));
         }
 
         public async Task<Alert> CreateAsync(Alert alert)
         {
+            var nextId = _context.Alerts.Any() ? _context.Alerts.Max(a => a.Id) + 1 : 1;
+            alert.Id = alert.Id == 0 ? nextId : alert.Id;
             _context.Alerts.Add(alert);
             await _context.SaveChangesAsync();
             return alert;
@@ -36,7 +33,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> UpdateAsync(int id, Alert alert)
         {
-            var existing = await _context.Alerts.FindAsync(id);
+            var existing = _context.Alerts.FirstOrDefault(a => a.Id == id);
             if (existing == null) return false;
 
             existing.Message = alert.Message;
@@ -51,7 +48,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var alert = await _context.Alerts.FindAsync(id);
+            var alert = _context.Alerts.FirstOrDefault(a => a.Id == id);
             if (alert == null) return false;
 
             _context.Alerts.Remove(alert);

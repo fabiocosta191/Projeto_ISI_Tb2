@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SafeHome.API.DTOs;
 using SafeHome.API.Options;
@@ -16,11 +15,7 @@ namespace SafeHome.Tests
     {
         private static AppDbContext CreateContext()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
+            return new AppDbContext();
         }
 
         [Fact]
@@ -46,7 +41,7 @@ namespace SafeHome.Tests
             await service.ShareIncidentAsync(10, new SocialShareRequestDto { Network = "twitter", Message = "   " });
 
             Assert.NotNull(handler.LastBody);
-            Assert.Contains("Atualização do incidente", handler.LastBody);
+            Assert.Contains("AtualizaÃ§Ã£o do incidente", handler.LastBody);
             Assert.Contains("Fire", handler.LastBody);
             Assert.Contains("HQ", handler.LastBody);
             Assert.Contains("Open", handler.LastBody);

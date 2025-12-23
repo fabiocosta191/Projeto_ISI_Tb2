@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
+﻿using SafeHome.Data;
 using SafeHome.Data.Models;
 
 namespace SafeHome.API.Services
@@ -15,16 +14,18 @@ namespace SafeHome.API.Services
 
         public async Task<List<Building>> GetAllBuildings()
         {
-            return await _context.Buildings.ToListAsync();
+            return await Task.FromResult(_context.Buildings.ToList());
         }
 
         public async Task<Building?> GetBuildingById(int id)
         {
-            return await _context.Buildings.FindAsync(id);
+            return await Task.FromResult(_context.Buildings.FirstOrDefault(b => b.Id == id));
         }
 
         public async Task<Building> CreateBuilding(Building building)
         {
+            var nextId = _context.Buildings.Any() ? _context.Buildings.Max(b => b.Id) + 1 : 1;
+            building.Id = building.Id == 0 ? nextId : building.Id;
             _context.Buildings.Add(building);
             await _context.SaveChangesAsync();
             return building;
@@ -34,49 +35,56 @@ namespace SafeHome.API.Services
         {
             if (id != building.Id) return false;
 
-            _context.Entry(building).State = EntityState.Modified;
+            var existing = _context.Buildings.FirstOrDefault(b => b.Id == id);
+            if (existing == null) return false;
 
-            try
-            {
-                await _context.SaveChangesAsync();
-                return true;
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await BuildingExists(id)) return false;
-                else throw;
-            }
+            existing.Name = building.Name;
+            existing.Address = building.Address;
+            existing.Latitude = building.Latitude;
+            existing.Longitude = building.Longitude;
+            existing.RiskType = building.RiskType;
+
+            await _context.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> DeleteBuilding(int id)
         {
-            var building = await _context.Buildings
-                .Include(b => b.Sensors)
-                .FirstOrDefaultAsync(b => b.Id == id);
+            var building = _context.Buildings.FirstOrDefault(b => b.Id == id);
             if (building == null) return false;
 
-            var incidents = _context.Incidents.Where(i => i.BuildingId == id);
-            _context.Incidents.RemoveRange(incidents);
-
-            if (building.Sensors != null && building.Sensors.Any())
+            var incidents = _context.Incidents.Where(i => i.BuildingId == id).ToList();
+            foreach (var incident in incidents)
             {
-                var sensorIds = building.Sensors.Select(s => s.Id).ToList();
-                var readingsToRemove = _context.SensorReadings.Where(r => sensorIds.Contains(r.SensorId));
-                var alertsToRemove = _context.Alerts.Where(a => sensorIds.Contains(a.SensorId));
+                _context.Incidents.Remove(incident);
+            }
 
-                _context.SensorReadings.RemoveRange(readingsToRemove);
-                _context.Alerts.RemoveRange(alertsToRemove);
-                _context.Sensors.RemoveRange(building.Sensors);
+            var sensors = _context.Sensors.Where(s => s.BuildingId == id).ToList();
+            if (sensors.Any())
+            {
+                var sensorIds = sensors.Select(s => s.Id).ToList();
+                var readingsToRemove = _context.SensorReadings.Where(r => sensorIds.Contains(r.SensorId)).ToList();
+                var alertsToRemove = _context.Alerts.Where(a => sensorIds.Contains(a.SensorId)).ToList();
+
+                foreach (var reading in readingsToRemove)
+                {
+                    _context.SensorReadings.Remove(reading);
+                }
+
+                foreach (var alert in alertsToRemove)
+                {
+                    _context.Alerts.Remove(alert);
+                }
+
+                foreach (var sensor in sensors)
+                {
+                    _context.Sensors.Remove(sensor);
+                }
             }
 
             _context.Buildings.Remove(building);
             await _context.SaveChangesAsync();
             return true;
-        }
-
-        private async Task<bool> BuildingExists(int id)
-        {
-            return await _context.Buildings.AnyAsync(e => e.Id == id);
         }
     }
 }

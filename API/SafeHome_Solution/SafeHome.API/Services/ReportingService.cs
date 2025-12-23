@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.DTOs;
 using SafeHome.Data;
 
@@ -21,70 +20,72 @@ namespace SafeHome.API.Services
         {
             var snapshot = new DashboardSnapshotDto
             {
-                TotalBuildings = await _dbContext.Buildings.CountAsync(),
-                TotalSensors = await _dbContext.Sensors.CountAsync(),
-                ActiveSensors = await _dbContext.Sensors.CountAsync(s => s.IsActive),
-                OpenIncidents = await _dbContext.Incidents.CountAsync(i => i.Status != "Resolved"),
-                ResolvedIncidents = await _dbContext.Incidents.CountAsync(i => i.Status == "Resolved"),
-                OpenAlerts = await _dbContext.Alerts.CountAsync(a => !a.IsResolved),
-                ResolvedAlerts = await _dbContext.Alerts.CountAsync(a => a.IsResolved),
+                TotalBuildings = _dbContext.Buildings.Count,
+                TotalSensors = _dbContext.Sensors.Count,
+                ActiveSensors = _dbContext.Sensors.Count(s => s.IsActive),
+                OpenIncidents = _dbContext.Incidents.Count(i => i.Status != "Resolved"),
+                ResolvedIncidents = _dbContext.Incidents.Count(i => i.Status == "Resolved"),
+                OpenAlerts = _dbContext.Alerts.Count(a => !a.IsResolved),
+                ResolvedAlerts = _dbContext.Alerts.Count(a => a.IsResolved),
                 GeneratedAtUtc = DateTime.UtcNow
             };
 
             snapshot.InactiveSensors = snapshot.TotalSensors - snapshot.ActiveSensors;
 
-            snapshot.Buildings = await _dbContext.Buildings
+            snapshot.Buildings = _dbContext.Buildings
                 .Select(b => new BuildingLoadDto
                 {
                     BuildingId = b.Id,
                     BuildingName = b.Name,
-                    SensorCount = b.Sensors.Count,
-                    OpenIncidents = b.Incidents.Count(i => i.Status != "Resolved")
+                    SensorCount = _dbContext.Sensors.Count(s => s.BuildingId == b.Id),
+                    OpenIncidents = _dbContext.Incidents.Count(i => i.BuildingId == b.Id && i.Status != "Resolved")
                 })
                 .OrderByDescending(b => b.OpenIncidents)
                 .ThenByDescending(b => b.SensorCount)
-                .ToListAsync();
+                .ToList();
 
-            return snapshot;
+            return await Task.FromResult(snapshot);
         }
 
         public async Task<string> ExportAlertsCsvAsync()
         {
-            var alerts = await _dbContext.Alerts
-                .Include(a => a.Sensor)
-                .ThenInclude(s => s.Building)
+            var alerts = _dbContext.Alerts
                 .OrderByDescending(a => a.Timestamp)
-                .ToListAsync();
+                .ToList();
 
             var csv = new StringBuilder();
             csv.AppendLine("Id,Timestamp,Severity,IsResolved,SensorId,SensorName,Building,Message");
 
             foreach (var alert in alerts)
             {
+                var sensor = _dbContext.Sensors.FirstOrDefault(s => s.Id == alert.SensorId);
+                var building = sensor != null ? _dbContext.Buildings.FirstOrDefault(b => b.Id == sensor.BuildingId) : null;
+
                 csv.AppendLine(
-                    $"{alert.Id},{alert.Timestamp:O},{alert.Severity},{alert.IsResolved},{alert.SensorId},\"{alert.Sensor?.Name}\",\"{alert.Sensor?.Building?.Name}\",\"{alert.Message.Replace("\"", "''")}\"");
+                    $"{alert.Id},{alert.Timestamp:O},{alert.Severity},{alert.IsResolved},{alert.SensorId},\"{sensor?.Name}\",\"{building?.Name}\",\"{alert.Message.Replace("\"", "''")}\"");
             }
 
-            return csv.ToString();
+            return await Task.FromResult(csv.ToString());
         }
 
         public async Task<string> ExportIncidentsCsvAsync()
         {
-            var incidents = await _dbContext.Incidents
-                .Include(i => i.Building)
+            var incidents = _dbContext.Incidents
                 .OrderByDescending(i => i.StartedAt)
-                .ToListAsync();
+                .ToList();
 
             var csv = new StringBuilder();
             csv.AppendLine("Id,Type,Severity,Status,Building,StartedAt,EndedAt,Description");
 
             foreach (var incident in incidents)
             {
+                var building = _dbContext.Buildings.FirstOrDefault(b => b.Id == incident.BuildingId);
+
                 csv.AppendLine(
-                    $"{incident.Id},{incident.Type},{incident.Severity},{incident.Status},\"{incident.Building?.Name}\",{incident.StartedAt:O},{incident.EndedAt:O},\"{incident.Description?.Replace("\"", "''") ?? ""}\"");
+                    $"{incident.Id},{incident.Type},{incident.Severity},{incident.Status},\"{building?.Name}\",{incident.StartedAt:O},{incident.EndedAt:O},\"{incident.Description?.Replace("\"", "''") ?? ""}\"");
             }
 
-            return csv.ToString();
+            return await Task.FromResult(csv.ToString());
         }
     }
 }

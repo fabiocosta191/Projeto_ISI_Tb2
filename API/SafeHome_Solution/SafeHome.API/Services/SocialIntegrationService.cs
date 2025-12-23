@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SafeHome.API.DTOs;
 using SafeHome.API.Options;
@@ -27,9 +26,8 @@ namespace SafeHome.API.Services
 
         public async Task<SocialShareResultDto> ShareIncidentAsync(int incidentId, SocialShareRequestDto request)
         {
-            var incident = await _dbContext.Incidents
-                .Include(i => i.Building)
-                .FirstOrDefaultAsync(i => i.Id == incidentId);
+            var incident = _dbContext.Incidents.FirstOrDefault(i => i.Id == incidentId);
+            var building = incident != null ? _dbContext.Buildings.FirstOrDefault(b => b.Id == incident.BuildingId) : null;
 
             if (incident == null)
             {
@@ -44,7 +42,7 @@ namespace SafeHome.API.Services
                 throw new InvalidOperationException($"Rede social '{request.Network}' não configurada ou desativada.");
             }
 
-            var buildingName = incident.Building?.Name ?? "Edifício desconhecido";
+            var buildingName = building?.Name ?? "Edifício desconhecido";
             var message = string.IsNullOrWhiteSpace(request.Message)
                 ? $"Atualização do incidente '{incident.Type}' em {buildingName} (estado: {incident.Status})."
                 : request.Message.Trim();

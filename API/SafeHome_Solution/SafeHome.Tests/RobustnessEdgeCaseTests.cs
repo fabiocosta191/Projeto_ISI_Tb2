@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SafeHome.API.Controllers;
 using SafeHome.API.Services;
@@ -14,11 +13,7 @@ namespace SafeHome.Tests
     {
         private static AppDbContext CreateContext()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
+            return new AppDbContext();
         }
 
         private static IConfiguration CreateJwtConfig()
@@ -72,7 +67,7 @@ namespace SafeHome.Tests
 
             var response = await controller.GetCurrentUser();
 
-            // Aceita as 2 implementações mais comuns
+            // Aceita as 2 implementaÃ§Ãµes mais comuns
             Assert.True(
                 response.Result is NotFoundResult ||
                 response.Result is NotFoundObjectResult

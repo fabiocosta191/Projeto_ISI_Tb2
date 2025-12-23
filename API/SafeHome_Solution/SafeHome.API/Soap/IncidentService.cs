@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
+﻿using SafeHome.Data;
 using SafeHome.Data.Models;
 
 namespace SafeHome.API.Soap
@@ -31,24 +30,19 @@ namespace SafeHome.API.Soap
 
         public async Task<List<Incident>> GetUnresolvedIncidents()
         {
-            return await _context.Incidents
+            return await Task.FromResult(_context.Incidents
                 .Where(i => i.Status != "Resolved")
-                .Include(i => i.Building) // Traz os dados do edifício
-                .ToListAsync();
+                .ToList());
         }
 
         public async Task<List<Incident>> GetAllIncidents()
         {
-            return await _context.Incidents
-                .Include(i => i.Building)
-                .ToListAsync();
+            return await Task.FromResult(_context.Incidents.ToList());
         }
 
         public async Task<Incident?> GetIncidentById(int id)
         {
-            return await _context.Incidents
-                .Include(i => i.Building)
-                .FirstOrDefaultAsync(i => i.Id == id);
+            return await Task.FromResult(_context.Incidents.FirstOrDefault(i => i.Id == id));
         }
 
         public async Task<Incident> CreateIncident(Incident incident)
@@ -58,6 +52,8 @@ namespace SafeHome.API.Soap
                 incident.StartedAt = DateTime.UtcNow;
             }
 
+            var nextId = _context.Incidents.Any() ? _context.Incidents.Max(i => i.Id) + 1 : 1;
+            incident.Id = incident.Id == 0 ? nextId : incident.Id;
             _context.Incidents.Add(incident);
             await _context.SaveChangesAsync();
             return incident;
@@ -65,7 +61,7 @@ namespace SafeHome.API.Soap
 
         public async Task<bool> UpdateIncident(int id, Incident incident)
         {
-            var existing = await _context.Incidents.FindAsync(id);
+            var existing = _context.Incidents.FirstOrDefault(i => i.Id == id);
             if (existing == null) return false;
 
             existing.Type = incident.Type;
@@ -82,7 +78,7 @@ namespace SafeHome.API.Soap
 
         public async Task<bool> DeleteIncident(int id)
         {
-            var incident = await _context.Incidents.FindAsync(id);
+            var incident = _context.Incidents.FirstOrDefault(i => i.Id == id);
             if (incident == null) return false;
 
             _context.Incidents.Remove(incident);

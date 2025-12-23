@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SafeHome.API.DTOs;
 using SafeHome.Data;
@@ -35,7 +34,7 @@ namespace SafeHome.API.Controllers
                 return BadRequest("Invalid role. Allowed roles: Admin, User.");
             }
 
-            if (await _context.Users.AnyAsync(u => u.Username == request.Username))
+            if (_context.Users.Any(u => u.Username == request.Username))
             {
                 return BadRequest("User already exists.");
             }
@@ -49,6 +48,7 @@ namespace SafeHome.API.Controllers
                 Role = request.Role
             };
 
+            user.Id = (_context.Users.LastOrDefault()?.Id ?? 0) + 1;
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -59,8 +59,8 @@ namespace SafeHome.API.Controllers
         [HttpPost("Login")]
         public async Task<ActionResult<string>> Login(LoginDto request)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == request.Username);
+            var user = _context.Users
+                .FirstOrDefault(u => u.Username == request.Username);
 
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
@@ -79,7 +79,7 @@ namespace SafeHome.API.Controllers
             var username = User.FindFirstValue(ClaimTypes.Name);
             if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            var user = _context.Users.FirstOrDefault(u => u.Username == username);
             if (user == null) return NotFound();
 
             return Ok(new { user.Id, user.Username, user.Role });
@@ -92,7 +92,7 @@ namespace SafeHome.API.Controllers
             var username = User.FindFirstValue(ClaimTypes.Name);
             if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            var user = _context.Users.FirstOrDefault(u => u.Username == username);
             if (user == null) return NotFound();
 
             if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
