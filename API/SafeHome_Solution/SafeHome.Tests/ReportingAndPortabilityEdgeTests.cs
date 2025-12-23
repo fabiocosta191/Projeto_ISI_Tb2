@@ -1,38 +1,22 @@
-using Microsoft.EntityFrameworkCore;
+ï»¿using System;
 using SafeHome.API.DTOs;
 using SafeHome.API.Services;
-using SafeHome.Data;
-using SafeHome.Data.Models;
 using Xunit;
 
 namespace SafeHome.Tests
 {
     public class ReportingAndPortabilityEdgeTests
     {
-        private static AppDbContext CreateContext()
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
-        }
-
         [Fact]
         public async Task ReportingService_ComputesInactiveSensorsCorrectly()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("A");
+            await db.InsertSensorAsync(buildingId, name: "S1", type: "S1", isActive: true);
+            await db.InsertSensorAsync(buildingId, name: "S2", type: "S2", isActive: false);
+            await db.InsertSensorAsync(buildingId, name: "S3", type: "S3", isActive: false);
 
-            context.Buildings.Add(new Building { Id = 1, Name = "A" });
-            context.Sensors.AddRange(
-                new Sensor { Id = 1, Name = "S1", BuildingId = 1, IsActive = true },
-                new Sensor { Id = 2, Name = "S2", BuildingId = 1, IsActive = false },
-                new Sensor { Id = 3, Name = "S3", BuildingId = 1, IsActive = false }
-            );
-
-            await context.SaveChangesAsync();
-
-            var service = new ReportingService(context);
+            var service = new ReportingService(db.ConnectionFactory);
             var snapshot = await service.GetDashboardAsync();
 
             Assert.Equal(3, snapshot.TotalSensors);
@@ -43,43 +27,36 @@ namespace SafeHome.Tests
         [Fact]
         public async Task ReportingService_BuildingsOrderedByOpenIncidentsThenSensorCount()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
 
-            var a = new Building { Id = 1, Name = "A" };
-            var b = new Building { Id = 2, Name = "B" };
-            context.Buildings.AddRange(a, b);
+            var buildingAId = await db.InsertBuildingAsync("A");
+            var buildingBId = await db.InsertBuildingAsync("B");
 
-            // A: 2 incidentes abertos, 1 sensor
-            context.Sensors.Add(new Sensor { Id = 10, Name = "A1", BuildingId = 1, IsActive = true });
-            context.Incidents.AddRange(
-                new Incident { Id = 100, BuildingId = 1, Type = "Fire", Status = "Open", StartedAt = DateTime.UtcNow },
-                new Incident { Id = 101, BuildingId = 1, Type = "Leak", Status = "Open", StartedAt = DateTime.UtcNow }
-            );
+            // A: 2 open incidents, 1 sensor
+            await db.InsertSensorAsync(buildingAId, name: "A1", type: "A1", isActive: true);
+            await db.InsertIncidentAsync(buildingAId, type: "Fire", status: "Open");
+            await db.InsertIncidentAsync(buildingAId, type: "Leak", status: "Open");
 
-            // B: 1 incidente aberto, 5 sensores
-            context.Sensors.AddRange(
-                new Sensor { Id = 20, Name = "B1", BuildingId = 2, IsActive = true },
-                new Sensor { Id = 21, Name = "B2", BuildingId = 2, IsActive = true },
-                new Sensor { Id = 22, Name = "B3", BuildingId = 2, IsActive = true },
-                new Sensor { Id = 23, Name = "B4", BuildingId = 2, IsActive = true },
-                new Sensor { Id = 24, Name = "B5", BuildingId = 2, IsActive = true }
-            );
-            context.Incidents.Add(new Incident { Id = 200, BuildingId = 2, Type = "Power", Status = "Open", StartedAt = DateTime.UtcNow });
+            // B: 1 open incident, 5 sensors
+            await db.InsertSensorAsync(buildingBId, name: "B1", type: "B1", isActive: true);
+            await db.InsertSensorAsync(buildingBId, name: "B2", type: "B2", isActive: true);
+            await db.InsertSensorAsync(buildingBId, name: "B3", type: "B3", isActive: true);
+            await db.InsertSensorAsync(buildingBId, name: "B4", type: "B4", isActive: true);
+            await db.InsertSensorAsync(buildingBId, name: "B5", type: "B5", isActive: true);
+            await db.InsertIncidentAsync(buildingBId, type: "Power", status: "Open");
 
-            await context.SaveChangesAsync();
-
-            var service = new ReportingService(context);
+            var service = new ReportingService(db.ConnectionFactory);
             var snapshot = await service.GetDashboardAsync();
 
             Assert.NotEmpty(snapshot.Buildings);
-            Assert.Equal(1, snapshot.Buildings[0].BuildingId); // A primeiro (mais incidentes abertos)
+            Assert.Equal(buildingAId, snapshot.Buildings[0].BuildingId);
         }
 
         [Fact]
         public async Task ReportingService_ExportAlertsCsv_ReturnsHeaderOnly_WhenNoAlerts()
         {
-            using var context = CreateContext();
-            var service = new ReportingService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new ReportingService(db.ConnectionFactory);
 
             var csv = await service.ExportAlertsCsvAsync();
             var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -91,32 +68,26 @@ namespace SafeHome.Tests
         [Fact]
         public async Task ReportingService_ExportIncidentsCsv_EscapesQuotesInDescription()
         {
-            using var context = CreateContext();
-            context.Buildings.Add(new Building { Id = 1, Name = "HQ" });
-            context.Incidents.Add(new Incident
-            {
-                Id = 1,
-                BuildingId = 1,
-                Type = "Fire",
-                Severity = "High",
-                Status = "Open",
-                StartedAt = DateTime.UtcNow,
-                Description = "Trigger \"A\" detected"
-            });
-            await context.SaveChangesAsync();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            await db.InsertIncidentAsync(
+                buildingId,
+                type: "Fire",
+                status: "Open",
+                severity: "High",
+                description: "Trigger \"A\" detected");
 
-            var service = new ReportingService(context);
+            var service = new ReportingService(db.ConnectionFactory);
             var csv = await service.ExportIncidentsCsvAsync();
 
-            // Implementação atual faz Replace("\"", "''")
             Assert.Contains("Trigger ''A'' detected", csv);
         }
 
         [Fact]
         public async Task DataPortabilityService_ExportSensorReadingsCsv_ReturnsHeaderOnly_WhenNoReadings()
         {
-            using var context = CreateContext();
-            var service = new DataPortabilityService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new DataPortabilityService(db.ConnectionFactory);
 
             var csv = await service.ExportSensorReadingsCsvAsync(null);
             var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -128,37 +99,37 @@ namespace SafeHome.Tests
         [Fact]
         public async Task DataPortabilityService_ImportSensorReadings_ReturnsNote_WhenEmptyInput()
         {
-            using var context = CreateContext();
-            var service = new DataPortabilityService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new DataPortabilityService(db.ConnectionFactory);
 
             var summary = await service.ImportSensorReadingsAsync(Array.Empty<SensorReadingImportDto>());
 
             Assert.Equal(0, summary.Imported);
             Assert.Equal(0, summary.Skipped);
             Assert.Contains(summary.Notes, n => n.Contains("Nenhuma leitura fornecida"));
-            Assert.Empty(context.SensorReadings);
+            Assert.Equal(0, await db.GetCountAsync("SensorReadings"));
         }
 
         [Fact]
         public async Task DataPortabilityService_ImportSensorReadings_DefaultsNullValueAndTimestamp()
         {
-            using var context = CreateContext();
-            context.Sensors.Add(new Sensor { Id = 5, Name = "Temp", BuildingId = 1, IsActive = true });
-            await context.SaveChangesAsync();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var sensorId = await db.InsertSensorAsync(buildingId, name: "Temp", type: "Temp", isActive: true);
 
-            var service = new DataPortabilityService(context);
+            var service = new DataPortabilityService(db.ConnectionFactory);
 
             var before = DateTime.UtcNow.AddSeconds(-2);
             var summary = await service.ImportSensorReadingsAsync(new[]
             {
-                new SensorReadingImportDto { SensorId = 5, Value = null, Timestamp = null }
+                new SensorReadingImportDto { SensorId = sensorId, Value = null, Timestamp = null }
             });
             var after = DateTime.UtcNow.AddSeconds(2);
 
             Assert.Equal(1, summary.Imported);
             Assert.Equal(0, summary.Skipped);
 
-            var reading = await context.SensorReadings.FirstAsync();
+            var reading = await db.GetFirstSensorReadingAsync();
             Assert.Equal(0, reading.Value);
             Assert.True(reading.Timestamp >= before && reading.Timestamp <= after);
         }

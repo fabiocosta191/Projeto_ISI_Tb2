@@ -1,12 +1,11 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using SafeHome.API.Data;
 using SafeHome.API.Options;
 using SafeHome.API.Services;
 using SafeHome.API.Soap;
-using SafeHome.Data;
 using SoapCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,8 +65,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // --- Base de Dados ---
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddSingleton<IDbConnectionFactory>(new SqlConnectionFactory(connectionString));
 
 // --- Autenticação JWT ---
 var jwtKey = builder.Configuration["Jwt:Key"];

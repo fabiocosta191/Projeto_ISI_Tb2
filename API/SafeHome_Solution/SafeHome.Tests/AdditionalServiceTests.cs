@@ -3,44 +3,29 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using SafeHome.API.Controllers;
 using SafeHome.API.DTOs;
 using SafeHome.API.Options;
 using SafeHome.API.Services;
-using SafeHome.API.Soap;
-using SafeHome.Data;
-using SafeHome.Data.Models;
 using Xunit;
 
 namespace SafeHome.Tests
 {
     public class AdditionalServiceTests
     {
-        private static AppDbContext CreateContext()
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
-        }
-
         [Fact]
         public async Task ReportingService_ReturnsAggregatedSnapshot()
         {
-            using var context = CreateContext();
-            var building = new Building { Name = "HQ" };
-            context.Buildings.Add(building);
-            context.Sensors.Add(new Sensor { Name = "Smoke", Building = building, IsActive = true });
-            context.Incidents.Add(new Incident { Type = "Fire", Status = "Open", Building = building, StartedAt = DateTime.UtcNow });
-            context.Incidents.Add(new Incident { Type = "Leak", Status = "Resolved", Building = building, StartedAt = DateTime.UtcNow });
-            context.Alerts.Add(new Alert { Message = "Temp high", Severity = "High", SensorId = 1, IsResolved = false, Timestamp = DateTime.UtcNow });
-            await context.SaveChangesAsync();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var sensorId = await db.InsertSensorAsync(buildingId, name: "Smoke", type: "Smoke", isActive: true);
+            await db.InsertIncidentAsync(buildingId, type: "Fire", status: "Open");
+            await db.InsertIncidentAsync(buildingId, type: "Leak", status: "Resolved");
+            await db.InsertAlertAsync(sensorId, message: "Temp high", severity: "High", isResolved: false);
 
-            var service = new ReportingService(context);
+            var service = new ReportingService(db.ConnectionFactory);
             var snapshot = await service.GetDashboardAsync();
 
             Assert.Equal(1, snapshot.TotalBuildings);
@@ -54,31 +39,29 @@ namespace SafeHome.Tests
         [Fact]
         public async Task DataPortabilityService_ImportsAndSkipsMissingSensors()
         {
-            using var context = CreateContext();
-            context.Sensors.Add(new Sensor { Id = 5, Name = "Temperature", BuildingId = 1, IsActive = true });
-            await context.SaveChangesAsync();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var sensorId = await db.InsertSensorAsync(buildingId, name: "Temperature", type: "Temperature", isActive: true);
 
-            var service = new DataPortabilityService(context);
+            var service = new DataPortabilityService(db.ConnectionFactory);
             var summary = await service.ImportSensorReadingsAsync(new[]
             {
-                new SensorReadingImportDto { SensorId = 5, Value = 20.5 },
+                new SensorReadingImportDto { SensorId = sensorId, Value = 20.5 },
                 new SensorReadingImportDto { SensorId = 99, Value = 30.1 },
             });
 
             Assert.Equal(1, summary.Imported);
             Assert.Equal(1, summary.Skipped);
             Assert.Single(summary.Notes);
-            Assert.Equal(1, context.SensorReadings.Count());
+            Assert.Equal(1, await db.GetCountAsync("SensorReadings"));
         }
 
         [Fact]
         public async Task SocialIntegrationService_UsesConfiguredNetwork()
         {
-            using var context = CreateContext();
-            var building = new Building { Id = 10, Name = "Data Center" };
-            context.Buildings.Add(building);
-            context.Incidents.Add(new Incident { Id = 3, Type = "Power", Status = "Open", Building = building, StartedAt = DateTime.UtcNow });
-            await context.SaveChangesAsync();
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("Data Center");
+            var incidentId = await db.InsertIncidentAsync(buildingId, type: "Power", status: "Open");
 
             var networkOptions = Options.Create(new List<SocialNetworkOption>
             {
@@ -89,11 +72,12 @@ namespace SafeHome.Tests
             var httpClient = new HttpClient(fakeHandler) { BaseAddress = new Uri("https://social.test") };
             var httpFactory = new FakeHttpClientFactory(httpClient);
 
-            var service = new SocialIntegrationService(context, httpFactory, networkOptions);
-            var result = await service.ShareIncidentAsync(3, new SocialShareRequestDto { Network = "twitter", Message = "custom" });
+            var service = new SocialIntegrationService(db.ConnectionFactory, httpFactory, networkOptions);
+            var result = await service.ShareIncidentAsync(incidentId, new SocialShareRequestDto { Network = "twitter", Message = "custom" });
 
             Assert.Equal(200, result.ExternalStatusCode);
-            Assert.Contains("Power", result.PayloadPreview);
+            Assert.Contains("custom", result.PayloadPreview);
+            Assert.Contains("Data Center", result.PayloadPreview);
             Assert.Equal("https://social.test/share", fakeHandler.RequestedUri?.ToString());
             Assert.Equal("Bearer", fakeHandler.AuthorizationHeader?.Scheme);
         }
@@ -101,7 +85,7 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AuthController_RejectsInvalidRole()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string>
                 {
@@ -111,7 +95,7 @@ namespace SafeHome.Tests
                 })
                 .Build();
 
-            var controller = new AuthController(context, configuration);
+            var controller = new AuthController(db.ConnectionFactory, configuration);
             var response = await controller.Register(new RegisterDto { Username = "bob", Password = "123456", Role = "Guest" });
 
             Assert.IsType<BadRequestObjectResult>(response.Result);

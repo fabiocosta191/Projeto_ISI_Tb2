@@ -1,26 +1,15 @@
-using System.Security.Claims;
+ï»¿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SafeHome.API.Controllers;
 using SafeHome.API.Services;
-using SafeHome.Data;
 using Xunit;
 
 namespace SafeHome.Tests
 {
     public class RobustnessEdgeCaseTests
     {
-        private static AppDbContext CreateContext()
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
-        }
-
         private static IConfiguration CreateJwtConfig()
         {
             return new ConfigurationBuilder()
@@ -36,8 +25,8 @@ namespace SafeHome.Tests
         [Fact]
         public async Task BuildingService_DeleteBuilding_ReturnsFalse_WhenBuildingDoesNotExist()
         {
-            using var context = CreateContext();
-            var service = new BuildingService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new BuildingService(db.ConnectionFactory);
 
             var deleted = await service.DeleteBuilding(999);
 
@@ -47,8 +36,8 @@ namespace SafeHome.Tests
         [Fact]
         public async Task SensorService_DeleteSensor_ReturnsFalse_WhenSensorDoesNotExist()
         {
-            using var context = CreateContext();
-            var service = new SensorService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new SensorService(db.ConnectionFactory);
 
             var deleted = await service.DeleteSensor(999);
 
@@ -58,8 +47,8 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AuthController_Me_ReturnsNotFound_WhenUserClaimExistsButUserMissingInDb()
         {
-            using var context = CreateContext();
-            var controller = new AuthController(context, CreateJwtConfig());
+            await using var db = await TestDatabase.CreateAsync();
+            var controller = new AuthController(db.ConnectionFactory, CreateJwtConfig());
 
             controller.ControllerContext = new ControllerContext
             {
@@ -72,7 +61,6 @@ namespace SafeHome.Tests
 
             var response = await controller.GetCurrentUser();
 
-            // Aceita as 2 implementações mais comuns
             Assert.True(
                 response.Result is NotFoundResult ||
                 response.Result is NotFoundObjectResult

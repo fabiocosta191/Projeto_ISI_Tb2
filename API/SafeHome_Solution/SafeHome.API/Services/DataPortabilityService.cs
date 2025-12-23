@@ -1,46 +1,50 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Data;
 using System.Text;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using SafeHome.API.Data;
 using SafeHome.API.DTOs;
-using SafeHome.Data;
-using SafeHome.Data.Models;
 
 namespace SafeHome.API.Services
 {
     public class DataPortabilityService : IDataPortabilityService
     {
-        private readonly AppDbContext _dbContext;
+        private readonly IDbConnectionFactory _connectionFactory;
 
-        public DataPortabilityService(AppDbContext dbContext)
+        public DataPortabilityService(IDbConnectionFactory connectionFactory)
         {
-            _dbContext = dbContext;
+            _connectionFactory = connectionFactory;
         }
 
         public async Task<string> ExportSensorReadingsCsvAsync(int? sensorId = null)
         {
-            var query = _dbContext.SensorReadings
-                .Include(r => r.Sensor)
-                .ThenInclude(s => s.Building)
-                .AsQueryable();
-
-            if (sensorId.HasValue)
+            const string sql = @"SELECT sr.Id, sr.SensorId, sr.Value, sr.Timestamp,
+                                        s.Name AS SensorName, b.Name AS BuildingName
+                                 FROM SensorReadings sr
+                                 INNER JOIN Sensors s ON sr.SensorId = s.Id
+                                 LEFT JOIN Buildings b ON s.BuildingId = b.Id
+                                 WHERE (@SensorId IS NULL OR sr.SensorId = @SensorId)
+                                 ORDER BY sr.Timestamp DESC";
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.Add(new SqlParameter("@SensorId", SqlDbType.Int)
             {
-                query = query.Where(r => r.SensorId == sensorId.Value);
-            }
-
-            var readings = await query
-                .OrderByDescending(r => r.Timestamp)
-                .ToListAsync();
+                Value = sensorId.HasValue ? sensorId.Value : DBNull.Value
+            });
+            await using var reader = await command.ExecuteReaderAsync();
 
             var csv = new StringBuilder();
             csv.AppendLine("Id,SensorId,SensorName,Building,Value,Timestamp");
 
-            foreach (var reading in readings)
+            while (await reader.ReadAsync())
             {
-                csv.AppendLine($"{reading.Id},{reading.SensorId},\"{reading.Sensor?.Name}\",\"{reading.Sensor?.Building?.Name}\",{reading.Value},{reading.Timestamp:O}");
+                var sensorNameOrdinal = reader.GetOrdinal("SensorName");
+                var buildingNameOrdinal = reader.GetOrdinal("BuildingName");
+                var sensorName = reader.IsDBNull(sensorNameOrdinal) ? "" : reader.GetString(sensorNameOrdinal);
+                var buildingName = reader.IsDBNull(buildingNameOrdinal) ? "" : reader.GetString(buildingNameOrdinal);
+                var timestamp = reader.GetDateTime(reader.GetOrdinal("Timestamp"));
+
+                csv.AppendLine($"{reader.GetInt32(reader.GetOrdinal("Id"))},{reader.GetInt32(reader.GetOrdinal("SensorId"))},\"{sensorName}\",\"{buildingName}\",{reader.GetDouble(reader.GetOrdinal("Value"))},{timestamp:O}");
             }
 
             return csv.ToString();
@@ -58,10 +62,35 @@ namespace SafeHome.API.Services
             }
 
             var sensorIds = readingsList.Select(r => r.SensorId).Distinct().ToList();
-            var existingSensors = await _dbContext.Sensors
-                .Where(s => sensorIds.Contains(s.Id))
-                .Select(s => s.Id)
-                .ToListAsync();
+            var existingSensors = new HashSet<int>();
+
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+
+            if (sensorIds.Count > 0)
+            {
+                var parameterNames = sensorIds.Select((_, index) => $"@Id{index}").ToList();
+                var sql = $"SELECT Id FROM Sensors WHERE Id IN ({string.Join(", ", parameterNames)})";
+                await using var command = new SqlCommand(sql, connection);
+
+                for (var i = 0; i < sensorIds.Count; i++)
+                {
+                    command.Parameters.AddWithValue(parameterNames[i], sensorIds[i]);
+                }
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    existingSensors.Add(reader.GetInt32(reader.GetOrdinal("Id")));
+                }
+            }
+
+            using var transaction = connection.BeginTransaction();
+            const string insertSql = "INSERT INTO SensorReadings (SensorId, Value, Timestamp) VALUES (@SensorId, @Value, @Timestamp)";
+            await using var insertCommand = new SqlCommand(insertSql, connection, transaction);
+            var sensorIdParam = insertCommand.Parameters.Add("@SensorId", SqlDbType.Int);
+            var valueParam = insertCommand.Parameters.Add("@Value", SqlDbType.Float);
+            var timestampParam = insertCommand.Parameters.Add("@Timestamp", SqlDbType.DateTime2);
 
             foreach (var readingDto in readingsList)
             {
@@ -72,18 +101,15 @@ namespace SafeHome.API.Services
                     continue;
                 }
 
-                var entity = new SensorReading
-                {
-                    SensorId = readingDto.SensorId,
-                    Value = readingDto.Value ?? 0,
-                    Timestamp = readingDto.Timestamp ?? DateTime.UtcNow
-                };
+                sensorIdParam.Value = readingDto.SensorId;
+                valueParam.Value = readingDto.Value ?? 0;
+                timestampParam.Value = readingDto.Timestamp ?? DateTime.UtcNow;
 
-                _dbContext.SensorReadings.Add(entity);
+                await insertCommand.ExecuteNonQueryAsync();
                 summary.Imported++;
             }
 
-            await _dbContext.SaveChangesAsync();
+            transaction.Commit();
             return summary;
         }
     }

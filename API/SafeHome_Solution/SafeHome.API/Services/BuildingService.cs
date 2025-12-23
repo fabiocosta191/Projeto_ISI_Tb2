@@ -1,32 +1,66 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
+using Microsoft.Data.SqlClient;
+using SafeHome.API.Data;
 using SafeHome.Data.Models;
 
 namespace SafeHome.API.Services
 {
     public class BuildingService : IBuildingService
     {
-        private readonly AppDbContext _context;
+        private readonly IDbConnectionFactory _connectionFactory;
 
-        public BuildingService(AppDbContext context)
+        public BuildingService(IDbConnectionFactory connectionFactory)
         {
-            _context = context;
+            _connectionFactory = connectionFactory;
         }
 
         public async Task<List<Building>> GetAllBuildings()
         {
-            return await _context.Buildings.ToListAsync();
+            const string sql = "SELECT Id, Name, Address, Latitude, Longitude, RiskType FROM Buildings";
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            await using var reader = await command.ExecuteReaderAsync();
+            var buildings = new List<Building>();
+
+            while (await reader.ReadAsync())
+            {
+                buildings.Add(MapBuilding(reader));
+            }
+
+            return buildings;
         }
 
         public async Task<Building?> GetBuildingById(int id)
         {
-            return await _context.Buildings.FindAsync(id);
+            const string sql = "SELECT Id, Name, Address, Latitude, Longitude, RiskType FROM Buildings WHERE Id = @Id";
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@Id", id);
+            await using var reader = await command.ExecuteReaderAsync();
+
+            if (!await reader.ReadAsync())
+            {
+                return null;
+            }
+
+            return MapBuilding(reader);
         }
 
         public async Task<Building> CreateBuilding(Building building)
         {
-            _context.Buildings.Add(building);
-            await _context.SaveChangesAsync();
+            const string sql = @"INSERT INTO Buildings (Name, Address, Latitude, Longitude, RiskType)
+                                 OUTPUT INSERTED.Id
+                                 VALUES (@Name, @Address, @Latitude, @Longitude, @RiskType)";
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@Name", building.Name);
+            command.Parameters.AddWithValue("@Address", building.Address);
+            command.Parameters.AddWithValue("@Latitude", building.Latitude);
+            command.Parameters.AddWithValue("@Longitude", building.Longitude);
+            command.Parameters.AddWithValue("@RiskType", building.RiskType);
+            building.Id = (int)await command.ExecuteScalarAsync();
             return building;
         }
 
@@ -34,49 +68,95 @@ namespace SafeHome.API.Services
         {
             if (id != building.Id) return false;
 
-            _context.Entry(building).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-                return true;
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await BuildingExists(id)) return false;
-                else throw;
-            }
+            const string sql = @"UPDATE Buildings
+                                 SET Name = @Name,
+                                     Address = @Address,
+                                     Latitude = @Latitude,
+                                     Longitude = @Longitude,
+                                     RiskType = @RiskType
+                                 WHERE Id = @Id";
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@Name", building.Name);
+            command.Parameters.AddWithValue("@Address", building.Address);
+            command.Parameters.AddWithValue("@Latitude", building.Latitude);
+            command.Parameters.AddWithValue("@Longitude", building.Longitude);
+            command.Parameters.AddWithValue("@RiskType", building.RiskType);
+            command.Parameters.AddWithValue("@Id", id);
+            var rows = await command.ExecuteNonQueryAsync();
+            return rows > 0;
         }
 
         public async Task<bool> DeleteBuilding(int id)
         {
-            var building = await _context.Buildings
-                .Include(b => b.Sensors)
-                .FirstOrDefaultAsync(b => b.Id == id);
-            if (building == null) return false;
+            const string existsSql = "SELECT 1 FROM Buildings WHERE Id = @Id";
+            const string deleteIncidentsSql = "DELETE FROM Incidents WHERE BuildingId = @Id";
+            const string deleteReadingsSql = "DELETE FROM SensorReadings WHERE SensorId IN (SELECT Id FROM Sensors WHERE BuildingId = @Id)";
+            const string deleteAlertsSql = "DELETE FROM Alerts WHERE SensorId IN (SELECT Id FROM Sensors WHERE BuildingId = @Id)";
+            const string deleteSensorsSql = "DELETE FROM Sensors WHERE BuildingId = @Id";
+            const string deleteBuildingSql = "DELETE FROM Buildings WHERE Id = @Id";
 
-            var incidents = _context.Incidents.Where(i => i.BuildingId == id);
-            _context.Incidents.RemoveRange(incidents);
+            await using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+            using var transaction = connection.BeginTransaction();
 
-            if (building.Sensors != null && building.Sensors.Any())
+            await using (var existsCommand = new SqlCommand(existsSql, connection, transaction))
             {
-                var sensorIds = building.Sensors.Select(s => s.Id).ToList();
-                var readingsToRemove = _context.SensorReadings.Where(r => sensorIds.Contains(r.SensorId));
-                var alertsToRemove = _context.Alerts.Where(a => sensorIds.Contains(a.SensorId));
-
-                _context.SensorReadings.RemoveRange(readingsToRemove);
-                _context.Alerts.RemoveRange(alertsToRemove);
-                _context.Sensors.RemoveRange(building.Sensors);
+                existsCommand.Parameters.AddWithValue("@Id", id);
+                var exists = await existsCommand.ExecuteScalarAsync();
+                if (exists == null)
+                {
+                    transaction.Rollback();
+                    return false;
+                }
             }
 
-            _context.Buildings.Remove(building);
-            await _context.SaveChangesAsync();
+            await using (var deleteIncidentsCommand = new SqlCommand(deleteIncidentsSql, connection, transaction))
+            {
+                deleteIncidentsCommand.Parameters.AddWithValue("@Id", id);
+                await deleteIncidentsCommand.ExecuteNonQueryAsync();
+            }
+
+            await using (var deleteReadingsCommand = new SqlCommand(deleteReadingsSql, connection, transaction))
+            {
+                deleteReadingsCommand.Parameters.AddWithValue("@Id", id);
+                await deleteReadingsCommand.ExecuteNonQueryAsync();
+            }
+
+            await using (var deleteAlertsCommand = new SqlCommand(deleteAlertsSql, connection, transaction))
+            {
+                deleteAlertsCommand.Parameters.AddWithValue("@Id", id);
+                await deleteAlertsCommand.ExecuteNonQueryAsync();
+            }
+
+            await using (var deleteSensorsCommand = new SqlCommand(deleteSensorsSql, connection, transaction))
+            {
+                deleteSensorsCommand.Parameters.AddWithValue("@Id", id);
+                await deleteSensorsCommand.ExecuteNonQueryAsync();
+            }
+
+            await using (var deleteBuildingCommand = new SqlCommand(deleteBuildingSql, connection, transaction))
+            {
+                deleteBuildingCommand.Parameters.AddWithValue("@Id", id);
+                await deleteBuildingCommand.ExecuteNonQueryAsync();
+            }
+
+            transaction.Commit();
             return true;
         }
 
-        private async Task<bool> BuildingExists(int id)
+        private static Building MapBuilding(SqlDataReader reader)
         {
-            return await _context.Buildings.AnyAsync(e => e.Id == id);
+            return new Building
+            {
+                Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                Name = reader.GetString(reader.GetOrdinal("Name")),
+                Address = reader.GetString(reader.GetOrdinal("Address")),
+                Latitude = reader.GetDouble(reader.GetOrdinal("Latitude")),
+                Longitude = reader.GetDouble(reader.GetOrdinal("Longitude")),
+                RiskType = reader.GetString(reader.GetOrdinal("RiskType"))
+            };
         }
     }
 }

@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.Services;
 using SafeHome.API.Soap;
-using SafeHome.Data;
 using SafeHome.Data.Models;
 using Xunit;
 
@@ -9,26 +7,18 @@ namespace SafeHome.Tests
 {
     public class ServiceCrudTests
     {
-        private static AppDbContext CreateContext()
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
-        }
-
         [Fact]
         public async Task IncidentService_CreatesAndUpdates()
         {
-            using var context = CreateContext();
-            var service = new IncidentService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var service = new IncidentService(db.ConnectionFactory);
 
             var created = await service.CreateIncident(new Incident
             {
                 Type = "Fire",
                 Description = "Smoke detected",
-                BuildingId = 1,
+                BuildingId = buildingId,
                 Severity = "High",
                 Status = "Reported"
             });
@@ -46,13 +36,15 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AlertService_StoresAndDeletes()
         {
-            using var context = CreateContext();
-            var service = new AlertService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var sensorId = await db.InsertSensorAsync(buildingId, name: "Sensor", type: "Temp");
+            var service = new AlertService(db.ConnectionFactory);
 
             var created = await service.CreateAsync(new Alert
             {
                 Message = "Temperature high",
-                SensorId = 2,
+                SensorId = sensorId,
                 Severity = "Critical"
             });
 
@@ -66,8 +58,8 @@ namespace SafeHome.Tests
         [Fact]
         public async Task UserService_HashesPasswords()
         {
-            using var context = CreateContext();
-            var service = new UserService(context);
+            await using var db = await TestDatabase.CreateAsync();
+            var service = new UserService(db.ConnectionFactory);
 
             var user = await service.CreateAsync("alice", "pass123", "Admin");
 

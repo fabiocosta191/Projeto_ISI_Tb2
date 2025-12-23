@@ -1,28 +1,16 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SafeHome.API.Controllers;
 using SafeHome.API.DTOs;
 using SafeHome.API.Services;
-using SafeHome.Data;
-using SafeHome.Data.Models;
 using Xunit;
 
 namespace SafeHome.Tests
 {
     public class CascadeDeletionAndAuthTests
     {
-        private static AppDbContext CreateContext()
-        {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
-        }
-
         private static IConfiguration CreateJwtConfig()
         {
             return new ConfigurationBuilder()
@@ -38,89 +26,54 @@ namespace SafeHome.Tests
         [Fact]
         public async Task BuildingService_DeleteBuilding_RemovesIncidentsSensorsReadingsAndAlerts()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
 
-            var building = new Building { Id = 1, Name = "HQ" };
-            var s1 = new Sensor { Id = 10, Name = "Temp", BuildingId = 1, Building = building };
-            var s2 = new Sensor { Id = 11, Name = "Smoke", BuildingId = 1, Building = building };
+            var buildingId = await db.InsertBuildingAsync("HQ");
+            var sensor1Id = await db.InsertSensorAsync(buildingId, name: "Temp", type: "Temp");
+            var sensor2Id = await db.InsertSensorAsync(buildingId, name: "Smoke", type: "Smoke");
+            await db.InsertSensorReadingAsync(sensor1Id, 21.5, new DateTime(2024, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+            await db.InsertSensorReadingAsync(sensor2Id, 80, new DateTime(2024, 1, 2, 12, 0, 0, DateTimeKind.Utc));
+            await db.InsertAlertAsync(sensor1Id, message: "Hot", severity: "High", isResolved: false);
+            await db.InsertAlertAsync(sensor2Id, message: "Smoke", severity: "Critical", isResolved: false);
+            await db.InsertIncidentAsync(buildingId, type: "Fire", status: "Open");
+            await db.InsertIncidentAsync(buildingId, type: "Leak", status: "Resolved");
 
-            context.Buildings.Add(building);
-            context.Sensors.AddRange(s1, s2);
-
-            context.SensorReadings.AddRange(
-                new SensorReading { Id = 100, SensorId = 10, Value = 21.5, Timestamp = DateTime.SpecifyKind(new DateTime(2024, 1, 1, 12, 0, 0), DateTimeKind.Utc) },
-                new SensorReading { Id = 101, SensorId = 11, Value = 80, Timestamp = DateTime.SpecifyKind(new DateTime(2024, 1, 2, 12, 0, 0), DateTimeKind.Utc) }
-            );
-
-            context.Alerts.AddRange(
-                new Alert { Id = 200, SensorId = 10, Message = "Hot", Severity = "High", IsResolved = false, Timestamp = DateTime.UtcNow },
-                new Alert { Id = 201, SensorId = 11, Message = "Smoke", Severity = "Critical", IsResolved = false, Timestamp = DateTime.UtcNow }
-            );
-
-            context.Incidents.AddRange(
-                new Incident { Id = 300, BuildingId = 1, Building = building, Type = "Fire", Status = "Open", StartedAt = DateTime.UtcNow },
-                new Incident { Id = 301, BuildingId = 1, Building = building, Type = "Leak", Status = "Resolved", StartedAt = DateTime.UtcNow }
-            );
-
-            await context.SaveChangesAsync();
-
-            var service = new BuildingService(context);
-            var deleted = await service.DeleteBuilding(1);
+            var service = new BuildingService(db.ConnectionFactory);
+            var deleted = await service.DeleteBuilding(buildingId);
 
             Assert.True(deleted);
 
-            Assert.Empty(context.Buildings);
-            Assert.Empty(context.Sensors);
-            Assert.Empty(context.SensorReadings);
-            Assert.Empty(context.Alerts);
-            Assert.Empty(context.Incidents);
+            Assert.Equal(0, await db.GetCountAsync("Buildings"));
+            Assert.Equal(0, await db.GetCountAsync("Sensors"));
+            Assert.Equal(0, await db.GetCountAsync("SensorReadings"));
+            Assert.Equal(0, await db.GetCountAsync("Alerts"));
+            Assert.Equal(0, await db.GetCountAsync("Incidents"));
         }
 
         [Fact]
         public async Task SensorService_DeleteSensor_RemovesReadingsAndAlerts()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
 
-            var building = new Building { Id = 1, Name = "Main" };
-            var sensor = new Sensor { Id = 5, Name = "Temp", BuildingId = 1, Building = building };
+            var buildingId = await db.InsertBuildingAsync("Main");
+            var sensorId = await db.InsertSensorAsync(buildingId, name: "Temp", type: "Temp");
+            await db.InsertSensorReadingAsync(sensorId, 10, DateTime.UtcNow);
+            await db.InsertAlertAsync(sensorId, message: "Alert", severity: "Low", isResolved: false);
 
-            context.Buildings.Add(building);
-            context.Sensors.Add(sensor);
-
-            context.SensorReadings.Add(new SensorReading
-            {
-                Id = 1,
-                SensorId = 5,
-                Value = 10,
-                Timestamp = DateTime.UtcNow
-            });
-
-            context.Alerts.Add(new Alert
-            {
-                Id = 2,
-                SensorId = 5,
-                Message = "Alert",
-                Severity = "Low",
-                IsResolved = false,
-                Timestamp = DateTime.UtcNow
-            });
-
-            await context.SaveChangesAsync();
-
-            var service = new SensorService(context);
-            var deleted = await service.DeleteSensor(5);
+            var service = new SensorService(db.ConnectionFactory);
+            var deleted = await service.DeleteSensor(sensorId);
 
             Assert.True(deleted);
-            Assert.Empty(context.Sensors);
-            Assert.Empty(context.SensorReadings);
-            Assert.Empty(context.Alerts);
+            Assert.Equal(0, await db.GetCountAsync("Sensors"));
+            Assert.Equal(0, await db.GetCountAsync("SensorReadings"));
+            Assert.Equal(0, await db.GetCountAsync("Alerts"));
         }
 
         [Fact]
         public async Task AuthController_Me_ReturnsUnauthorized_WhenNoUsernameClaim()
         {
-            using var context = CreateContext();
-            var controller = new AuthController(context, CreateJwtConfig());
+            await using var db = await TestDatabase.CreateAsync();
+            var controller = new AuthController(db.ConnectionFactory, CreateJwtConfig());
 
             controller.ControllerContext = new ControllerContext
             {
@@ -137,11 +90,9 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AuthController_Me_ReturnsOk_WhenUserExists()
         {
-            using var context = CreateContext();
-            context.Users.Add(new User { Username = "alice", PasswordHash = BCrypt.Net.BCrypt.HashPassword("pass"), Role = "Admin" });
-            await context.SaveChangesAsync();
-
-            var controller = new AuthController(context, CreateJwtConfig());
+            await using var db = await TestDatabase.CreateAsync();
+            await db.InsertUserAsync("alice", BCrypt.Net.BCrypt.HashPassword("pass"), "Admin");
+            var controller = new AuthController(db.ConnectionFactory, CreateJwtConfig());
 
             controller.ControllerContext = new ControllerContext
             {
@@ -166,11 +117,9 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AuthController_ChangePassword_ReturnsBadRequest_WhenCurrentPasswordWrong()
         {
-            using var context = CreateContext();
-            context.Users.Add(new User { Username = "bob", PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"), Role = "User" });
-            await context.SaveChangesAsync();
-
-            var controller = new AuthController(context, CreateJwtConfig());
+            await using var db = await TestDatabase.CreateAsync();
+            await db.InsertUserAsync("bob", BCrypt.Net.BCrypt.HashPassword("oldpass"), "User");
+            var controller = new AuthController(db.ConnectionFactory, CreateJwtConfig());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -193,12 +142,10 @@ namespace SafeHome.Tests
         [Fact]
         public async Task AuthController_ChangePassword_UpdatesHash_WhenCurrentPasswordCorrect()
         {
-            using var context = CreateContext();
+            await using var db = await TestDatabase.CreateAsync();
             var originalHash = BCrypt.Net.BCrypt.HashPassword("oldpass");
-            context.Users.Add(new User { Username = "carol", PasswordHash = originalHash, Role = "User" });
-            await context.SaveChangesAsync();
-
-            var controller = new AuthController(context, CreateJwtConfig());
+            await db.InsertUserAsync("carol", originalHash, "User");
+            var controller = new AuthController(db.ConnectionFactory, CreateJwtConfig());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -216,9 +163,10 @@ namespace SafeHome.Tests
 
             Assert.IsType<OkObjectResult>(result);
 
-            var user = await context.Users.FirstAsync(u => u.Username == "carol");
-            Assert.NotEqual(originalHash, user.PasswordHash);
-            Assert.True(BCrypt.Net.BCrypt.Verify("newpass", user.PasswordHash));
+            var updatedHash = await db.GetUserPasswordHashAsync("carol");
+            Assert.NotNull(updatedHash);
+            Assert.NotEqual(originalHash, updatedHash);
+            Assert.True(BCrypt.Net.BCrypt.Verify("newpass", updatedHash));
         }
 
         [Fact]
