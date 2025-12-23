@@ -375,6 +375,17 @@ body.bg {
   color: var(--accent);
 }
 
+.badge-button {
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.badge-button:hover {
+  background: rgba(34, 197, 94, 0.15);
+}
+
 /* Cards de resumo */
 
 .cards-grid {
@@ -466,6 +477,10 @@ body.bg {
   gap: 0.6rem 0.75rem;
 }
 
+.form-grid.single-column {
+  grid-template-columns: 1fr;
+}
+
 .form-actions {
   display: flex;
   align-items: center;
@@ -482,6 +497,24 @@ body.bg {
   cursor: pointer;
   transition: background-color var(--transition-fast),
     border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-danger {
+  border-radius: 0.6rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+    border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.7);
+  transform: translateY(-1px);
 }
 
 .btn-secondary:hover {
@@ -520,6 +553,10 @@ body.bg {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.hidden-column {
+  display: none;
 }
 
 .data-table tbody tr:hover {
@@ -583,6 +620,26 @@ body.bg {
   color: var(--text-main);
   border: 1px solid rgba(34, 197, 94, 0.3);
   font-size: 0.85rem;
+}
+
+.pill-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pill-action {
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fecdd3;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.pill-action:hover {
+  background: rgba(239, 68, 68, 0.16);
 }
 
 .muted-box {

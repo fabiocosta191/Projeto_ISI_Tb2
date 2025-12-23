@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -69,6 +70,40 @@ namespace SafeHome.API.Controllers
             string token = CreateToken(user);
 
             return Ok(token);
+        }
+
+        [Authorize]
+        [HttpGet("Me")]
+        public async Task<ActionResult<object>> GetCurrentUser()
+        {
+            var username = User.FindFirstValue(ClaimTypes.Name);
+            if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null) return NotFound();
+
+            return Ok(new { user.Id, user.Username, user.Role });
+        }
+
+        [Authorize]
+        [HttpPost("ChangePassword")]
+        public async Task<ActionResult> ChangePassword(ChangePasswordDto dto)
+        {
+            var username = User.FindFirstValue(ClaimTypes.Name);
+            if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null) return NotFound();
+
+            if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            {
+                return BadRequest("A password atual não está correta.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Password alterada com sucesso." });
         }
 
         private string CreateToken(User user)
