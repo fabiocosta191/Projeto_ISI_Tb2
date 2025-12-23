@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.Services;
 using SafeHome.API.Soap;
 using SafeHome.Data;
@@ -11,11 +10,7 @@ namespace SafeHome.Tests
     {
         private static AppDbContext CreateContext()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
+            return new AppDbContext();
         }
 
         [Fact]

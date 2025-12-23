@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.Data;
 using SafeHome.Data.Models;
 
@@ -15,20 +14,18 @@ namespace SafeHome.API.Services
 
         public async Task<List<SensorReading>> GetAllAsync()
         {
-            return await _context.SensorReadings
-                .Include(r => r.Sensor)
-                .ToListAsync();
+            return await Task.FromResult(_context.SensorReadings.ToList());
         }
 
         public async Task<SensorReading?> GetByIdAsync(int id)
         {
-            return await _context.SensorReadings
-                .Include(r => r.Sensor)
-                .FirstOrDefaultAsync(r => r.Id == id);
+            return await Task.FromResult(_context.SensorReadings.FirstOrDefault(r => r.Id == id));
         }
 
         public async Task<SensorReading> CreateAsync(SensorReading reading)
         {
+            var nextId = _context.SensorReadings.Any() ? _context.SensorReadings.Max(r => r.Id) + 1 : 1;
+            reading.Id = reading.Id == 0 ? nextId : reading.Id;
             _context.SensorReadings.Add(reading);
             await _context.SaveChangesAsync();
             return reading;
@@ -36,7 +33,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> UpdateAsync(int id, SensorReading reading)
         {
-            var existing = await _context.SensorReadings.FindAsync(id);
+            var existing = _context.SensorReadings.FirstOrDefault(r => r.Id == id);
             if (existing == null) return false;
 
             existing.Value = reading.Value;
@@ -49,7 +46,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var reading = await _context.SensorReadings.FindAsync(id);
+            var reading = _context.SensorReadings.FirstOrDefault(r => r.Id == id);
             if (reading == null) return false;
 
             _context.SensorReadings.Remove(reading);

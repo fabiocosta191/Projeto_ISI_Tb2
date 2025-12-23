@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.DTOs;
 using SafeHome.API.Services;
 using SafeHome.Data;
@@ -11,11 +10,7 @@ namespace SafeHome.Tests
     {
         private static AppDbContext CreateContext()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            return new AppDbContext(options);
+            return new AppDbContext();
         }
 
         [Fact]
@@ -108,7 +103,7 @@ namespace SafeHome.Tests
             var service = new ReportingService(context);
             var csv = await service.ExportIncidentsCsvAsync();
 
-            // Implementação atual faz Replace("\"", "''")
+            // ImplementaÃ§Ã£o atual faz Replace("\"", "''")
             Assert.Contains("Trigger ''A'' detected", csv);
         }
 

@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SafeHome.Data;
 using SafeHome.Data.Models;
 
@@ -15,17 +14,17 @@ namespace SafeHome.API.Services
 
         public async Task<List<User>> GetAllAsync()
         {
-            return await _context.Users.ToListAsync();
+            return await Task.FromResult(_context.Users.ToList());
         }
 
         public async Task<User?> GetByIdAsync(int id)
         {
-            return await _context.Users.FindAsync(id);
+            return await Task.FromResult(_context.Users.FirstOrDefault(u => u.Id == id));
         }
 
         public async Task<User> CreateAsync(string username, string password, string role)
         {
-            if (await _context.Users.AnyAsync(u => u.Username == username))
+            if (_context.Users.Any(u => u.Username == username))
             {
                 throw new InvalidOperationException("User already exists.");
             }
@@ -39,6 +38,7 @@ namespace SafeHome.API.Services
                 Role = role
             };
 
+            user.Id = (_context.Users.Any() ? _context.Users.Max(u => u.Id) : 0) + 1;
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
             return user;
@@ -46,7 +46,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> UpdateRoleAsync(int id, string role)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = _context.Users.FirstOrDefault(u => u.Id == id);
             if (user == null) return false;
 
             user.Role = role;
@@ -56,7 +56,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> ResetPasswordAsync(int id, string newPassword)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = _context.Users.FirstOrDefault(u => u.Id == id);
             if (user == null) return false;
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);

@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SafeHome.Data;
+﻿using SafeHome.Data;
 using SafeHome.Data.Models;
 
 namespace SafeHome.API.Services
@@ -15,16 +14,18 @@ namespace SafeHome.API.Services
 
         public async Task<List<Sensor>> GetAllSensors()
         {
-            return await _context.Sensors.ToListAsync();
+            return await Task.FromResult(_context.Sensors.ToList());
         }
 
         public async Task<Sensor?> GetSensorById(int id)
         {
-            return await _context.Sensors.FindAsync(id);
+            return await Task.FromResult(_context.Sensors.FirstOrDefault(s => s.Id == id));
         }
 
         public async Task<Sensor> CreateSensor(Sensor sensor)
         {
+            var nextId = _context.Sensors.Any() ? _context.Sensors.Max(s => s.Id) + 1 : 1;
+            sensor.Id = sensor.Id == 0 ? nextId : sensor.Id;
             _context.Sensors.Add(sensor);
             await _context.SaveChangesAsync();
             return sensor;
@@ -32,7 +33,7 @@ namespace SafeHome.API.Services
 
         public async Task<bool> UpdateSensor(int id, Sensor sensor)
         {
-            var existingSensor = await _context.Sensors.FindAsync(id);
+            var existingSensor = _context.Sensors.FirstOrDefault(s => s.Id == id);
             if (existingSensor == null) return false;
 
             // Atualizar campos
@@ -47,14 +48,22 @@ namespace SafeHome.API.Services
 
         public async Task<bool> DeleteSensor(int id)
         {
-            var sensor = await _context.Sensors.FindAsync(id);
+            var sensor = _context.Sensors.FirstOrDefault(s => s.Id == id);
             if (sensor == null) return false;
 
-            var sensorReadings = _context.SensorReadings.Where(r => r.SensorId == id);
-            var sensorAlerts = _context.Alerts.Where(a => a.SensorId == id);
+            var sensorReadings = _context.SensorReadings.Where(r => r.SensorId == id).ToList();
+            var sensorAlerts = _context.Alerts.Where(a => a.SensorId == id).ToList();
 
-            _context.SensorReadings.RemoveRange(sensorReadings);
-            _context.Alerts.RemoveRange(sensorAlerts);
+            foreach (var reading in sensorReadings)
+            {
+                _context.SensorReadings.Remove(reading);
+            }
+
+            foreach (var alert in sensorAlerts)
+            {
+                _context.Alerts.Remove(alert);
+            }
+
             _context.Sensors.Remove(sensor);
             await _context.SaveChangesAsync();
             return true;

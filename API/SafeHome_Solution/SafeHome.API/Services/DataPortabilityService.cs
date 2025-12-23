@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using SafeHome.API.DTOs;
 using SafeHome.Data;
 using SafeHome.Data.Models;
@@ -21,29 +20,23 @@ namespace SafeHome.API.Services
 
         public async Task<string> ExportSensorReadingsCsvAsync(int? sensorId = null)
         {
-            var query = _dbContext.SensorReadings
-                .Include(r => r.Sensor)
-                .ThenInclude(s => s.Building)
-                .AsQueryable();
-
-            if (sensorId.HasValue)
-            {
-                query = query.Where(r => r.SensorId == sensorId.Value);
-            }
-
-            var readings = await query
+            var readings = _dbContext.SensorReadings
+                .Where(r => !sensorId.HasValue || r.SensorId == sensorId.Value)
                 .OrderByDescending(r => r.Timestamp)
-                .ToListAsync();
+                .ToList();
 
             var csv = new StringBuilder();
             csv.AppendLine("Id,SensorId,SensorName,Building,Value,Timestamp");
 
             foreach (var reading in readings)
             {
-                csv.AppendLine($"{reading.Id},{reading.SensorId},\"{reading.Sensor?.Name}\",\"{reading.Sensor?.Building?.Name}\",{reading.Value},{reading.Timestamp:O}");
+                var sensor = _dbContext.Sensors.FirstOrDefault(s => s.Id == reading.SensorId);
+                var building = sensor != null ? _dbContext.Buildings.FirstOrDefault(b => b.Id == sensor.BuildingId) : null;
+
+                csv.AppendLine($"{reading.Id},{reading.SensorId},\"{sensor?.Name}\",\"{building?.Name}\",{reading.Value},{reading.Timestamp:O}");
             }
 
-            return csv.ToString();
+            return await Task.FromResult(csv.ToString());
         }
 
         public async Task<ImportSummaryDto> ImportSensorReadingsAsync(IEnumerable<SensorReadingImportDto> readings)
@@ -58,10 +51,10 @@ namespace SafeHome.API.Services
             }
 
             var sensorIds = readingsList.Select(r => r.SensorId).Distinct().ToList();
-            var existingSensors = await _dbContext.Sensors
+            var existingSensors = _dbContext.Sensors
                 .Where(s => sensorIds.Contains(s.Id))
                 .Select(s => s.Id)
-                .ToListAsync();
+                .ToList();
 
             foreach (var readingDto in readingsList)
             {
