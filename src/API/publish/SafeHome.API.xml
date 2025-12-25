@@ -1,0 +1,109 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SafeHome.API</name>
+    </assembly>
+    <members>
+        <member name="M:SafeHome.API.Controllers.BuildingsController.GetBuildings">
+            <summary>
+            Lista todos os edifícios registados.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.BuildingsController.GetBuilding(System.Int32)">
+            <summary>
+            Obtém detalhes de um edifício e a meteorologia atual do local.
+            </summary>
+            <param name="id">ID do edifício</param>
+        </member>
+        <member name="M:SafeHome.API.Controllers.BuildingsController.PostBuilding(SafeHome.Data.Models.Building)">
+            <summary>
+            Regista um novo edifício.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.BuildingsController.PutBuilding(System.Int32,SafeHome.Data.Models.Building)">
+            <summary>
+            Atualiza os dados de um edifício.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.BuildingsController.DeleteBuilding(System.Int32)">
+            <summary>
+            Remove um edifício.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.SensorsController.GetSensors">
+            <summary>
+            Obtém a lista de todos os sensores.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.SensorsController.GetSensor(System.Int32)">
+            <summary>
+            Obtém um sensor pelo ID.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.SensorsController.PostSensor(SafeHome.API.DTOs.CreateSensorDto)">
+            <summary>
+            Cria um novo sensor.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.SensorsController.PutSensor(System.Int32,SafeHome.API.DTOs.UpdateSensorDto)">
+            <summary>
+            Atualiza um sensor existente.
+            </summary>
+        </member>
+        <member name="M:SafeHome.API.Controllers.SensorsController.DeleteSensor(System.Int32)">
+            <summary>
+            Remove um sensor.
+            </summary>
+        </member>
+        <member name="T:SafeHome.API.DTOs.CreateSensorDto">
+            <summary>
+            Modelo de dados para criar um novo sensor.
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.CreateSensorDto.Name">
+            <summary>
+            O nome descritivo do sensor (ex: "Detetor Fumo Cozinha").
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.CreateSensorDto.Type">
+            <summary>
+            O tipo de sensor (ex: Smoke, Temperature, Flood).
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.CreateSensorDto.BuildingId">
+            <summary>
+            O ID do edifício onde o sensor será instalado. (Opcional)
+            </summary>
+        </member>
+        <member name="T:SafeHome.API.DTOs.UpdateSensorDto">
+            <summary>
+            Modelo de dados para atualizar um sensor existente.
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.UpdateSensorDto.Name">
+            <summary>
+            O novo nome do sensor.
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.UpdateSensorDto.Type">
+            <summary>
+            O novo tipo do sensor.
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.UpdateSensorDto.IsActive">
+            <summary>
+            Indica se o sensor está ativo ou inativo.
+            </summary>
+        </member>
+        <member name="P:SafeHome.API.DTOs.UpdateSensorDto.BuildingId">
+            <summary>
+            O ID do edifício associado. (Opcional)
+            </summary>
+        </member>
+        <member name="T:Program">
+            <summary>
+            Auto-generated public partial Program class for top-level statement apps.
+            </summary>
+        </member>
+    </members>
+</doc>

@@ -1,0 +1,9 @@
+version: "3.8"
+services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8080:8080"
+    environment:
+      # Se não funcionar, troca para SWAGGER_JSON
+      - API_URL=https://safehomeapi-22997-23015-h8dufye2amezh5f4.spaincentral-01.azurewebsites.net/swagger/v1/swagger.json
